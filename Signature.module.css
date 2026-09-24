@@ -1,0 +1,21 @@
+.signature {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.ink {
+  filter: drop-shadow(0 0 0 rgba(227, 22, 27, 0));
+  transition: filter 1.4s var(--ease-out);
+}
+
+.signature[data-phase="done"] .ink {
+  filter: drop-shadow(0 0 22px rgba(227, 22, 27, 0.45)) drop-shadow(0 0 2px rgba(255, 60, 60, 0.6));
+}
+
+.nib {
+  transition: opacity 0.25s ease;
+  mix-blend-mode: screen;
+}

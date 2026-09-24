@@ -1,0 +1,270 @@
+.slider {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.slider:focus-visible {
+  outline: 2px solid var(--c-red-hi);
+  outline-offset: -4px;
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: pan-y pinch-zoom;
+  cursor: grab;
+}
+
+.viewport[data-dragging] {
+  cursor: grabbing;
+}
+
+.track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.95s var(--ease-out);
+  will-change: transform;
+}
+
+.slide {
+  position: relative;
+  flex: 0 0 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.image {
+  object-fit: cover;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* ---------- hero ---------- */
+
+.hero .image {
+  object-position: 50% 42%;
+  transform: scale(1.1);
+  transition: transform 7.5s cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+.hero .active .image {
+  transform: scale(1.015);
+}
+
+.hero .meta {
+  position: absolute;
+  z-index: 3;
+  left: clamp(20px, 4vw, 56px);
+  right: clamp(20px, 4vw, 56px);
+  bottom: clamp(20px, 4vh, 44px);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 28px;
+  pointer-events: none;
+}
+
+.hero .meta > * {
+  pointer-events: auto;
+}
+
+.hero .arrows {
+  position: absolute;
+  z-index: 3;
+  right: clamp(20px, 4vw, 56px);
+  bottom: calc(clamp(20px, 4vh, 44px) + 44px);
+  display: flex;
+  gap: 10px;
+}
+
+/* ---------- lightbox ---------- */
+
+.lightbox .viewport {
+  cursor: default;
+}
+
+.lightbox .image {
+  object-fit: contain;
+  padding: clamp(64px, 9vh, 96px) clamp(0px, 6vw, 110px) clamp(110px, 16vh, 150px);
+}
+
+.lightbox .arrows {
+  position: absolute;
+  z-index: 3;
+  inset: 50% clamp(12px, 2vw, 32px) auto;
+  display: flex;
+  justify-content: space-between;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.lightbox .arrow {
+  pointer-events: auto;
+}
+
+.lightbox .meta {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: clamp(24px, 4vh, 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ---------- controls ---------- */
+
+.arrow {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: rgba(7, 7, 7, 0.45);
+  color: #fff;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    background-color 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out),
+    transform 0.3s var(--ease-out);
+}
+
+.arrow:hover {
+  background: var(--c-red);
+  border-color: var(--c-red);
+}
+
+.arrow:active {
+  transform: scale(0.94);
+}
+
+.arrow svg {
+  width: 22px;
+  height: 22px;
+}
+
+.counter {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
+}
+
+.counter b {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.counter em {
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.82);
+  letter-spacing: 0.16em;
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.dot::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-50%);
+}
+
+.dotFill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--c-red);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.4s var(--ease-out);
+}
+
+.dot[aria-current="true"] .dotFill {
+  transform: scaleX(1);
+}
+
+.dot[aria-current="true"] .dotFill[data-playing] {
+  animation: dotProgress linear both;
+}
+
+.dot:hover::before {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+@keyframes dotProgress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .hero .arrows {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .hero .meta {
+    bottom: 18px;
+    justify-content: space-between;
+  }
+
+  .hero .arrows {
+    display: none;
+  }
+
+  .counter em {
+    display: none;
+  }
+
+  .dot {
+    width: 28px;
+  }
+
+  .lightbox .arrows {
+    display: none;
+  }
+}

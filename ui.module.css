@@ -1,0 +1,142 @@
+/* ---------- StockMeter ---------- */
+
+.stock {
+  width: 100%;
+}
+
+.stockRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.stockLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--c-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.pulse {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-red);
+}
+
+.pulse::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--c-red);
+  animation: pulse 2.2s var(--ease-out) infinite;
+}
+
+@keyframes pulse {
+  from {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.stockValue {
+  color: var(--c-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.stockValue b {
+  color: var(--c-text);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.bar {
+  position: relative;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.barFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, var(--c-red-deep), var(--c-red-hi));
+  box-shadow: 0 0 12px var(--c-red-glow);
+}
+
+.stockNote {
+  margin-top: 10px;
+  color: var(--c-dim);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.stockCompact .stockValue b {
+  font-size: 24px;
+}
+
+/* ---------- Marquee ---------- */
+
+.marquee {
+  position: relative;
+  overflow: hidden;
+  border-block: 1px solid var(--c-line);
+  background: var(--c-bg-2);
+  padding-block: 18px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+
+.marqueeTrack {
+  display: flex;
+  width: max-content;
+  animation: marquee 38s linear infinite;
+}
+
+.marqueeGroup {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: clamp(24px, 3vw, 44px);
+  padding-right: clamp(24px, 3vw, 44px);
+  color: rgba(255, 255, 255, 0.42);
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.4vw, 32px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.marqueeAccent {
+  color: var(--c-red);
+}
+
+.marqueeDot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  background: var(--c-red);
+  transform: rotate(45deg);
+}
+
+@keyframes marquee {
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
