@@ -9,13 +9,14 @@ RUN mkdir app && tar -xzf kamui-site.tar.gz -C app
 
 FROM node:22-alpine AS build
 WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1 NEXT_OUTPUT=standalone NEXT_PUBLIC_SITE_URL=https://kamui-collection.ru
+# Ключи есть только при запуске, поэтому страницы с товаром собираются на каждый запрос
+ENV NEXT_TELEMETRY_DISABLED=1 NEXT_OUTPUT=standalone KAMUI_DYNAMIC_PAGES=1 NEXT_PUBLIC_SITE_URL=https://kamui-collection.ru
 COPY --from=src /src/app/ ./
 RUN npm install --no-audit --no-fund && npm run build
 
 FROM node:22-alpine AS run
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 TZ=Europe/Moscow
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 TZ=Europe/Moscow KAMUI_DYNAMIC_PAGES=1
 
 # ── Настройки магазина (не секретные). Любую можно переопределить в панели Timeweb. ──
 # Диск контейнера стирается при каждом обновлении — заявки хранятся в Google Таблице
