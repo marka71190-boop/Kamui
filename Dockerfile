@@ -1,11 +1,13 @@
 # ── Kamui Collection — сборка сайта для Timeweb Cloud App Platform (Москва) ──
-# Код сайта лежит в архиве kamui-site.tar.gz рядом с этим файлом.
+# Код сайта лежит в архивах kamui-site-ГГГГММДД-ЧЧММ.tar.gz рядом с этим файлом.
+# Берётся самый свежий по дате в имени — старые архивы можно не удалять.
 # Секреты (ключи СДЭК, ЮKassa, Google Таблицы) сюда НЕ пишем — они задаются в панели Timeweb.
 
 FROM node:22-alpine AS src
 WORKDIR /src
-COPY kamui-site.tar.gz ./
-RUN mkdir app && tar -xzf kamui-site.tar.gz -C app
+COPY kamui-site-*.tar.gz ./
+RUN latest=$(ls kamui-site-*.tar.gz | sort | tail -n 1) && echo "Сборка из $latest" \
+ && mkdir app && tar -xzf "$latest" -C app
 
 FROM node:22-alpine AS build
 WORKDIR /app
