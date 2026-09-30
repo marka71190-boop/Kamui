@@ -23,9 +23,9 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 TZ=
 # ── Настройки магазина (не секретные). Любую можно переопределить в панели Timeweb. ──
 # Диск контейнера стирается при каждом обновлении — заявки хранятся в Google Таблице
 ENV NEXT_PUBLIC_SITE_URL=https://kamui-collection.ru ORDERS_FILE_STORE=false
-# СДЭК: отправка из Краснодара, ПВЗ ул. Зиповская, 37; посылка склад-склад; 1 шт. — 7×7×1 см, 23 г
+# СДЭК: отправка из Краснодара, ПВЗ ул. Зиповская, 37; посылка склад-склад; 1 шт. — 26×18×1 см, 23 г
 ENV CDEK_ENABLED=true CDEK_TEST_MODE=false CDEK_FROM_CITY_CODE=435 CDEK_SHIPMENT_POINT=KSD47 CDEK_TARIFF_CODE=136 \
-    CDEK_ITEM_WEIGHT_G=23 CDEK_ITEM_LENGTH_CM=7 CDEK_ITEM_WIDTH_CM=7 CDEK_ITEM_HEIGHT_CM=1 CDEK_AUTO_SHIPMENT=true
+    CDEK_ITEM_WEIGHT_G=23 CDEK_ITEM_LENGTH_CM=26 CDEK_ITEM_WIDTH_CM=18 CDEK_ITEM_HEIGHT_CM=1 CDEK_AUTO_SHIPMENT=true
 # Доставку оплачивает покупатель, +30% к тарифу СДЭК
 ENV DELIVERY_PRICE_MODE=customer DELIVERY_MARKUP_PERCENT=30
 # ЮKassa: онлайн-оплата (секретный ключ — в панели Timeweb)
