@@ -102,10 +102,12 @@ interface Sum {
   /** Из них вне сайта: штук и рублей */
   offQty: number;
   offTotal: number;
+  /** Сколько записей о продажах вне сайта */
+  offCount: number;
 }
 
 function sum(list: Sale[]): Sum {
-  const s: Sum = { orders: 0, chalk: 0, kits: 0, goods: 0, delivery: 0, total: 0, offQty: 0, offTotal: 0 };
+  const s: Sum = { orders: 0, chalk: 0, kits: 0, goods: 0, delivery: 0, total: 0, offQty: 0, offTotal: 0, offCount: 0 };
   for (const o of list) {
     s.orders += 1;
     if (o.kit) s.kits += o.qty;
@@ -114,6 +116,7 @@ function sum(list: Sale[]): Sum {
     s.delivery += o.delivery;
     s.total += o.total;
     if (o.offsite) {
+      s.offCount += 1;
       s.offQty += o.qty;
       s.offTotal += o.total;
     }
@@ -182,7 +185,7 @@ function page(body: string, status = 200): Response {
 :root{color-scheme:light dark;--bg:#f6f6f7;--card:#fff;--line:#e3e3e6;--dim:#6b6b73;--ok:#1d8a4e;--bad:#c62828;--hi:rgba(227,22,27,.08)}
 @media (prefers-color-scheme:dark){:root{--bg:#111113;--card:#1b1b1e;--line:#2c2c31;--dim:#9a9aa3;--ok:#4cc38a;--bad:#ff6b6f;--hi:rgba(227,22,27,.18)}}
 *{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);font:15px/1.45 -apple-system,system-ui,Segoe UI,Roboto,sans-serif}
-main{max-width:860px;margin:0 auto}h1{font-size:22px;margin:4px 0 6px}h2{font-size:17px;margin:26px 0 10px}.lead,.dim{color:var(--dim)}.lead{margin:0 0 16px}
+main{max-width:980px;margin:0 auto}h1{font-size:22px;margin:4px 0 6px}h2{font-size:17px;margin:26px 0 10px}.lead,.dim{color:var(--dim)}.lead{margin:0 0 16px}
 a{color:inherit}.msg{padding:12px 14px;border-radius:10px;font-weight:600;background:rgba(198,40,40,.12);color:var(--bad)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}.tile b{display:block;font-size:26px;line-height:1.2}.tile span{color:var(--dim);font-size:13px}
@@ -195,6 +198,12 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px 12px;
 th{color:var(--dim);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}tr:last-child td{border-bottom:0}
 tr.cur td{background:var(--hi);font-weight:600}tfoot td{font-weight:700;border-top:2px solid var(--line)}
 nav{margin:22px 0 0;color:var(--dim);font-size:13px}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}.col{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.col.main{border-color:#e3161b}.col h3{margin:0 0 4px;font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}.col>b{display:block;font-size:28px;line-height:1.2}
+.col dl{margin:8px 0 0;font-size:14px}.col dl div{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--line)}.col dt{color:var(--dim)}.col dd{margin:0;font-weight:600;white-space:nowrap}
+th.grp{text-align:center;font-size:13px;color:inherit}td.g,th.g{border-left:1px solid var(--line)}
+.pair{display:grid;grid-template-columns:3fr 2fr;gap:0 16px;align-items:start}
+@media (max-width:700px){.cols,.pair{grid-template-columns:1fr}}
 .msg.ok{background:rgba(29,138,78,.12);color:var(--ok)}.tile.low{border-color:var(--bad)}.tile.low b{color:var(--bad)}
 .box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0}.box h3{margin:0 0 8px;font-size:15px}
 .box form{margin:0}input[type=number]{width:110px}select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:inherit}details{margin-top:10px;font-size:14px}summary{cursor:pointer;color:var(--dim)}input.wide{width:220px}button.alt{background:#222}button.link{background:none;color:var(--dim);padding:0;font-weight:400;font-size:13px;text-decoration:underline}
@@ -204,17 +213,31 @@ td form{display:inline;margin:0}.formula{margin:4px 0 0;font-size:13px;color:var
   );
 }
 
+/** Итог периода тремя столбиками: сайт, вне сайта, всего */
 function tiles(s: Sum): string {
-  const tile = (value: string, label: string, main = false) => `<div class="tile${main ? " main" : ""}"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
-  return `<div class="tiles">
-${tile(`${(s.chalk + s.kits).toLocaleString("ru-RU")} шт.`, "продано всего (мел + наборы)", true)}
-${tile(`${s.chalk.toLocaleString("ru-RU")} шт.`, "мел")}
-${tile(`${s.kits.toLocaleString("ru-RU")} шт.`, "подарочные наборы")}
-${tile(String(s.orders), "заказов и продаж")}
-${tile(`${s.offQty.toLocaleString("ru-RU")} шт. · ${rub(s.offTotal)}`, "из них вне сайта")}
-${tile(rub(s.goods), "выручка за товар (сайт + вне сайта)")}
-${tile(rub(s.delivery), "доставка, оплаченная покупателями")}
-${tile(rub(s.total), "получено всего")}
+  const n = (v: number) => v.toLocaleString("ru-RU");
+  const qty = s.chalk + s.kits;
+  const col = (title: string, cls: string, big: string, rows: [string, string][]) =>
+    `<div class="col ${cls}"><h3>${esc(title)}</h3><b>${esc(big)}</b><dl>${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl></div>`;
+  return `<div class="cols">
+${col("Сайт", "", `${n(qty - s.offQty)} шт.`, [
+    ["заказов", n(s.orders - s.offCount)],
+    ["за товар", rub(s.goods - s.offTotal)],
+    ["доставка (оплатили покупатели)", rub(s.delivery)],
+    ["получено", rub(s.total - s.offTotal)],
+  ])}
+${col("Вне сайта", "", `${n(s.offQty)} шт.`, [
+    ["продаж", n(s.offCount)],
+    ["за товар", rub(s.offTotal)],
+    ["доставка", "—"],
+    ["получено", rub(s.offTotal)],
+  ])}
+${col("Всего", "main", `${n(qty)} шт.`, [
+    ["мел / наборы", `${n(s.chalk)} / ${n(s.kits)}`],
+    ["за товар", rub(s.goods)],
+    ["доставка", rub(s.delivery)],
+    ["получено", rub(s.total)],
+  ])}
 </div>`;
 }
 
@@ -329,8 +352,10 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
   const periods: string[] = [];
   for (let p = first; p <= current; p = nextPeriod(p)) periods.push(p);
   periods.reverse();
-  const cells = (s: Sum) =>
-    `<td>${s.chalk + s.kits}</td><td>${s.chalk}</td><td>${s.kits}</td><td>${s.orders}</td><td>${s.offQty}</td><td>${esc(rub(s.goods))}</td><td>${esc(rub(s.total))}</td>`;
+  const cells = (s: Sum) => {
+    const qty = s.chalk + s.kits;
+    return `<td class="g">${qty - s.offQty}</td><td>${esc(rub(s.goods - s.offTotal))}</td><td class="g">${s.offQty}</td><td>${esc(rub(s.offTotal))}</td><td class="g"><b>${qty}</b></td><td><b>${esc(rub(s.goods))}</b></td>`;
+  };
   const periodRows = periods.map((p) => {
     const end = ymd(startOf(nextPeriod(p)) - DAY);
     const s = sum(byPeriod.get(p) ?? []);
@@ -340,12 +365,19 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
 
   const when = (t: number) =>
     new Date(t).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const orderRows = chosen.map(
-    (o) =>
-      o.offsite
-        ? `<tr><td><b>Вне сайта</b> <span class="dim">· ${esc(human(ymd(o.at)))}</span>${o.name ? `<br><span class="dim" style="white-space:normal">${esc(o.name)}</span>` : ""}</td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.goods))}</td><td>—</td><td>${esc(rub(o.total))}</td></tr>`
-        : `<tr><td>${esc(o.id)} <span class="dim">· ${esc(when(o.at))}${o.abroad ? " · из-за рубежа" : ""}</span><br><span class="dim">${esc(o.name)}</span></td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.goods))}</td><td>${esc(rub(o.delivery))}</td><td>${esc(rub(o.total))}</td></tr>`,
-  );
+  const siteRows = chosen
+    .filter((o) => !o.offsite)
+    .map(
+      (o) =>
+        `<tr><td>${esc(o.id)} <span class="dim">· ${esc(when(o.at))}${o.abroad ? " · из-за рубежа" : ""}</span><br><span class="dim">${esc(o.name)}</span></td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.goods))}</td><td>${esc(rub(o.delivery))}</td><td>${esc(rub(o.total))}</td></tr>`,
+    );
+  const offRows = chosen
+    .filter((o) => o.offsite)
+    .map(
+      (o) =>
+        `<tr><td>${esc(human(ymd(o.at)))}${o.name ? ` <span class="dim" style="white-space:normal">· ${esc(o.name)}</span>` : ""}</td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.total))}</td></tr>`,
+    );
+  const period = `${esc(human(from))} – ${esc(human(toInclusive))}`;
 
   return page(`<h1>Продажи</h1>
 <p class="lead">Отчётный период — с ${START_DAY}-го по ${START_DAY}-е число (${START_DAY}-е уже относится к новому периоду). Считаются оплаченные заказы по дате оплаты, время московское.</p>
@@ -363,16 +395,26 @@ ${custom ? `<a href="${base}">текущий период</a>` : ""}
 ${tiles(total)}
 <h2>По периодам</h2>
 <div class="wrap"><table>
-<thead><tr><th>Период</th><th>Продано, шт.</th><th>Мел</th><th>Наборы</th><th>Заказов</th><th>Вне сайта, шт.</th><th>За товар</th><th>Получено всего</th></tr></thead>
+<thead><tr><th rowspan="2">Период</th><th colspan="2" class="g grp">Сайт</th><th colspan="2" class="g grp">Вне сайта</th><th colspan="2" class="g grp">Всего</th></tr>
+<tr><th class="g">шт.</th><th>за товар</th><th class="g">шт.</th><th>за товар</th><th class="g">шт.</th><th>за товар</th></tr></thead>
 <tbody>${periodRows.join("\n")}</tbody>
 <tfoot><tr><td>За всё время</td>${cells(sum(sales))}</tr></tfoot>
 </table></div>
-<h2>Заказы за ${esc(human(from))} – ${esc(human(toInclusive))} · ${chosen.length}</h2>
+<p class="formula">«За товар» — без доставки. Доставку оплачивают только покупатели сайта, она показана в итогах периода выше.</p>
+<div class="pair">
+<div><h2>Сайт · заказы за ${period} · ${siteRows.length}</h2>
 ${
-  chosen.length
-    ? `<div class="wrap"><table><thead><tr><th>Заказ</th><th>Товар</th><th>За товар</th><th>Доставка</th><th>Всего</th></tr></thead><tbody>${orderRows.join("\n")}</tbody></table></div>`
-    : `<p class="dim">За этот период оплаченных заказов нет.</p>`
-}
+  siteRows.length
+    ? `<div class="wrap"><table><thead><tr><th>Заказ</th><th>Товар</th><th>За товар</th><th>Доставка</th><th>Всего</th></tr></thead><tbody>${siteRows.join("\n")}</tbody></table></div>`
+    : `<p class="dim">За этот период оплаченных заказов на сайте нет.</p>`
+}</div>
+<div><h2>Вне сайта · продажи за ${period} · ${offRows.length}</h2>
+${
+  offRows.length
+    ? `<div class="wrap"><table><thead><tr><th>Дата</th><th>Товар</th><th>Сумма</th></tr></thead><tbody>${offRows.join("\n")}</tbody></table></div>`
+    : `<p class="dim">За этот период продаж вне сайта не внесено.</p>`
+}</div>
+</div>
 <nav><a href="/cdek-orders${base}">← Накладные СДЭК</a> · В отчёт попадают оплаченные заказы сайта из базы данных и продажи вне сайта, внесённые на этой странице.</nav>`);
 }
 
