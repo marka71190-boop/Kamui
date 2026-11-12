@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SELLER, SITE } from "@/config/site";
+import { SELLER, SITE, telegramUrl } from "@/config/site";
 import { t } from "@/i18n/dict";
 import type { Lang } from "@/i18n/lang";
 import { Signature } from "@/components/signature/Signature";
@@ -50,6 +50,16 @@ export function Footer({ lang = "ru" }: { lang?: Lang }) {
                 <dt>{tx.phone}</dt>
                 <dd>
                   <a href={`tel:${SELLER.phone.replace(/[^\d+]/g, "")}`}>{SELLER.phone}</a>
+                </dd>
+              </div>
+            )}
+            {SELLER.telegram && (
+              <div>
+                <dt>Telegram</dt>
+                <dd>
+                  <a href={telegramUrl()} target="_blank" rel="noopener noreferrer">
+                    @{SELLER.telegram}
+                  </a>
                 </dd>
               </div>
             )}

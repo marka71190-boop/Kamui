@@ -714,6 +714,7 @@ ${recText ? `<p class="msg ok">${esc(recText)}</p>` : ""}
 ${yk?.fixed.length ? `<p class="msg bad">${esc(ykText(yk, webhookUrl))}</p>` : ""}
 ${rec?.keysError ? `<p class="msg bad">${esc(rec.keysError)}</p>` : ""}
 ${note ? `<p class="msg bad">${esc(note)}</p>` : ""}
+<p class="lead"><a href="/sales${base}">Продажи по периодам (с 20-го по 20-е) →</a></p>
 ${dbLine}
 ${mailState()}
 ${findForm(token)}
@@ -741,7 +742,7 @@ ${
 ${intl.map((o) => intlCard(o, token)).join("\n")}`
     : ""
 }
-<nav>Показаны последние ${days} дн. · <a href="${base}&days=${other}">показать за ${other} дн.</a>${
+<nav><a href="/sales${base}"><b>Продажи по периодам (с 20-го по 20-е) →</b></a><br>Показаны последние ${days} дн. · <a href="${base}&days=${other}">показать за ${other} дн.</a>${
     hiddenCount || [...FLAGS.values()].some((f) => f.hidden) ? ` · <a href="${base}&hidden=1&days=${days}">скрытые заказы</a>` : ""
   }</nav>`);
 }

@@ -326,3 +326,123 @@
     transform: rotate(360deg);
   }
 }
+
+/* ---------- список / карта, «Рядом со мной» ---------- */
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.tabs {
+  display: inline-flex;
+  border: 1px solid var(--c-line-2);
+  border-radius: 2px;
+}
+
+.tab {
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 0;
+  background: none;
+  color: var(--c-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tab[aria-pressed="true"] {
+  background: var(--c-text);
+  color: #000;
+}
+
+.nearBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--c-line-2);
+  border-radius: 2px;
+  background: none;
+  color: var(--c-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nearBtn[data-on] {
+  border-color: var(--c-success);
+  color: var(--c-success);
+}
+
+.nearBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.dist {
+  margin-left: auto;
+  padding-left: 10px;
+  flex: none;
+  color: var(--c-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.map {
+  width: 100%;
+  height: min(420px, 60vh);
+  border: 1px solid var(--c-line-2);
+  border-radius: 2px;
+  background: #ddd;
+  /* карта не должна перекрывать шапку и выпадающие списки */
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
+.map :global(.leaflet-tooltip) {
+  max-width: 240px;
+  white-space: normal;
+  color: #111;
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--c-line-2);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pickBtn {
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--c-red);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.points[hidden] {
+  display: none;
+}

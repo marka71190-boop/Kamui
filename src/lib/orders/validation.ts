@@ -342,7 +342,6 @@ export function validateOrderInput(
   }
 
   if (!input.consent) e.consent = m.consent;
-  if (!input.newsletter) e.newsletter = m.newsletter;
 
   return e;
 }

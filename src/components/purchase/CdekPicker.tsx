@@ -4,7 +4,15 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { cdekCountry, type CdekCountryCode } from "@/config/cdek-countries";
 import { formatMoney, formatPrice, plural } from "@/lib/format";
 import { LIMITS } from "@/lib/orders/validation";
+import dynamic from "next/dynamic";
 import styles from "./Cdek.module.css";
+import type { MapPoint } from "./PointsMap";
+
+// Карта (Leaflet) подгружается только когда покупатель открыл вкладку «На карте»
+const PointsMap = dynamic(() => import("./PointsMap").then((m) => m.PointsMap), {
+  ssr: false,
+  loading: () => <p className={styles.muted}>Загружаем карту…</p>,
+});
 
 export interface CdekSelection {
   city: string;
@@ -37,9 +45,29 @@ interface Point {
   name: string;
   address: string;
   workTime?: string;
+  lat?: number;
+  lon?: number;
+}
+
+interface Geo {
+  lat: number;
+  lon: number;
 }
 
 const MAX_VISIBLE = 60;
+
+/** Расстояние по прямой, км */
+function distanceKm(a: Geo, b: Geo): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+
+const distanceText = (km: number) => (km < 1 ? `${Math.max(50, Math.round(km * 20) * 50)} м` : `${km < 10 ? km.toFixed(1).replace(".", ",") : Math.round(km)} км`);
+
+const hasCoords = (p: Point): p is Point & Geo => typeof p.lat === "number" && typeof p.lon === "number";
 
 const norm = (s: string) => s.toLowerCase().replace(/ё/g, "е");
 
@@ -127,6 +155,7 @@ export function CdekPicker({
     setCityLoading(false);
     setCityOpen(false);
     setCities([]);
+    justPicked.current = true;
     onChange({ city: c.name, cityCode: c.code, pickupPoint: "" });
   };
 
@@ -154,11 +183,38 @@ export function CdekPicker({
   const [pointQuery, setPointQuery] = useState("");
   const [listOpen, setListOpen] = useState(true);
   const [reload, setReload] = useState(0);
+  /** Список или карта */
+  const [view, setView] = useState<"list" | "map">("list");
+  /** Пункт, на который нажали на карте (ещё не выбран) */
+  const [preview, setPreview] = useState("");
+  /** «Рядом со мной»: где покупатель */
+  const [geo, setGeo] = useState<Geo | null>(null);
+  const [geoState, setGeoState] = useState<"idle" | "loading" | "denied">("idle");
+  const searchRef = useRef<HTMLInputElement>(null);
+  /** Город только что выбран из списка — после загрузки пунктов ставим курсор в поиск */
+  const justPicked = useRef(false);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
+  const locate = () => {
+    if (geo) return setGeo(null);
+    if (!("geolocation" in navigator)) return setGeoState("denied");
+    setGeoState("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeo({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setGeoState("idle");
+      },
+      () => setGeoState("denied"),
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
+    );
+  };
 
   useEffect(() => {
     setPoints(null);
     setPointQuery("");
     setListOpen(true);
+    setPreview("");
     if (!value.cityCode) {
       setPointsState("idle");
       return;
@@ -169,6 +225,10 @@ export function CdekPicker({
       .then((d) => {
         setPoints(d.points);
         setPointsState("idle");
+        // Пункт уже выбран (форма восстановлена из черновика) — показываем его, а не весь список
+        if (d.points.some((p) => p.code === valueRef.current.pickupPoint)) setListOpen(false);
+        else if (justPicked.current) window.setTimeout(() => searchRef.current?.focus({ preventScroll: true }), 60);
+        justPicked.current = false;
       })
       .catch((err) => {
         if (!ctrl.signal.aborted) {
@@ -182,9 +242,20 @@ export function CdekPicker({
   const filtered = useMemo(() => {
     if (!points) return [];
     const q = norm(pointQuery.trim());
-    if (!q) return points;
-    return points.filter((p) => norm(`${p.address} ${p.name} ${p.code}`).includes(q));
-  }, [points, pointQuery]);
+    const list: (Point & { km?: number })[] = q ? points.filter((p) => norm(`${p.address} ${p.name} ${p.code}`).includes(q)) : points;
+    if (!geo) return list;
+    // «Рядом со мной»: ближайшие — сверху
+    return list
+      .map((p) => ({ ...p, km: hasCoords(p) ? distanceKm(geo, p) : undefined }))
+      .sort((a, b) => (a.km ?? 1e9) - (b.km ?? 1e9));
+  }, [points, pointQuery, geo]);
+
+  const mapPoints = useMemo<MapPoint[]>(
+    () => filtered.filter(hasCoords).map((p) => ({ code: p.code, address: p.address, lat: p.lat, lon: p.lon })),
+    [filtered],
+  );
+  const canMap = (points ?? []).some(hasCoords);
+  const previewPoint = points?.find((p) => p.code === preview);
 
   const selected = points?.find((p) => p.code === value.pickupPoint);
 
@@ -348,8 +419,27 @@ export function CdekPicker({
             points &&
             points.length > 0 && (
               <>
+                {canMap && (
+                  <div className={styles.tools}>
+                    <div className={styles.tabs}>
+                      <button type="button" className={styles.tab} aria-pressed={view === "list"} onClick={() => setView("list")}>
+                        Списком
+                      </button>
+                      <button type="button" className={styles.tab} aria-pressed={view === "map"} onClick={() => setView("map")}>
+                        На карте
+                      </button>
+                    </div>
+                    <button type="button" className={styles.nearBtn} onClick={locate} disabled={geoState === "loading"} data-on={geo ? "" : undefined}>
+                      {geoState === "loading" ? "Определяем…" : geo ? "✓ Ближайшие сверху" : "Рядом со мной"}
+                    </button>
+                    {geoState === "denied" && (
+                      <span className={styles.muted}>Не удалось определить место — разрешите доступ к геопозиции в браузере.</span>
+                    )}
+                  </div>
+                )}
                 {showSearch && (
                   <input
+                    ref={searchRef}
                     className={styles.search}
                     type="search"
                     placeholder="Поиск по улице или метро"
@@ -360,8 +450,35 @@ export function CdekPicker({
                     aria-invalid={pointError ? true : undefined}
                   />
                 )}
+                {view === "map" && canMap && (
+                  <>
+                    <PointsMap points={mapPoints} activeCode={preview || value.pickupPoint} user={geo} onPick={setPreview} />
+                    {previewPoint ? (
+                      <div className={styles.preview}>
+                        <div>
+                          <p className={styles.chosenAddr}>{previewPoint.address}</p>
+                          {previewPoint.workTime && <p className={styles.pointMeta}>{previewPoint.workTime}</p>}
+                        </div>
+                        <button
+                          type="button"
+                          className={styles.pickBtn}
+                          onClick={() => {
+                            onChange({ ...value, pickupPoint: previewPoint.code });
+                            setListOpen(false);
+                            setPreview("");
+                          }}
+                        >
+                          Заберу отсюда
+                        </button>
+                      </div>
+                    ) : (
+                      <p className={styles.muted}>Нажмите на точку на карте, чтобы посмотреть адрес и выбрать пункт.</p>
+                    )}
+                  </>
+                )}
                 <div
                   className={styles.points}
+                  hidden={view === "map" && canMap}
                   role="radiogroup"
                   aria-labelledby={`${uid}-pvz`}
                   aria-describedby={pointError ? "pickupPoint-error" : undefined}
@@ -384,6 +501,7 @@ export function CdekPicker({
                         <span className={styles.pointAddr}>{p.address}</span>
                         {p.workTime && <span className={styles.pointMeta}>{p.workTime}</span>}
                       </span>
+                      {p.km !== undefined && <span className={styles.dist}>{distanceText(p.km)}</span>}
                     </label>
                   ))}
                   {filtered.length === 0 && <p className={styles.muted}>Ничего не найдено — измените запрос</p>}

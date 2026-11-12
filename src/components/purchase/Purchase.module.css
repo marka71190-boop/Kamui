@@ -1041,8 +1041,61 @@
 }
 
 /* обязательная галочка «письма о заказе» — под согласием на обработку данных */
-.newsletter {
+.consentNote {
+  margin-top: 10px;
+  padding-left: 38px;
+  color: var(--c-dim);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* номер заказа с кнопкой «Скопировать» */
+.copyBtn {
+  margin-left: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--c-line-2);
+  border-radius: 2px;
+  color: var(--c-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.copyBtn:hover,
+.copyBtn[data-done] {
+  border-color: #fff;
+  color: #fff;
+}
+
+/* «Есть вопрос? Напишите в Telegram» */
+.support {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
   margin-top: 14px;
+  color: var(--c-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.support a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--c-text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.support svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
 }
 
 /* подсказка при опечатке в почте */

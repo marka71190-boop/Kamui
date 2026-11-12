@@ -1,0 +1,162 @@
+/* Страница «Где мой заказ» */
+
+.form,
+.result {
+  display: grid;
+  gap: 20px;
+  max-width: 640px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: var(--c-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.field input {
+  width: 100%;
+  min-height: 54px;
+  padding: 14px 16px;
+  border: 1px solid var(--c-line-2);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--c-text);
+  font-size: 16px;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: #fff;
+}
+
+.error {
+  color: var(--c-red-hi);
+  font-size: 14px;
+}
+
+.form :global(.btn),
+.result :global(.btn) {
+  justify-self: start;
+}
+
+.number {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  color: var(--c-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.number b {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+.steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  color: var(--c-dim);
+  font-size: 15px;
+}
+
+.steps li::before {
+  content: none;
+}
+
+.steps li span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--c-line-2);
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.steps li[data-done] {
+  color: var(--c-text);
+}
+
+.steps li[data-done] span {
+  border-color: var(--c-success);
+  background: var(--c-success);
+  color: #000;
+}
+
+.steps li[data-current] {
+  font-weight: 700;
+}
+
+.steps li[data-current] span {
+  border-color: var(--c-red);
+  background: var(--c-red);
+  color: #fff;
+}
+
+.state {
+  padding: 14px 16px;
+  border-left: 3px solid var(--c-success);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--c-text);
+}
+
+.state[data-bad] {
+  border-left-color: var(--c-red);
+}
+
+.facts {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.facts div {
+  display: grid;
+  gap: 2px;
+}
+
+.facts dt {
+  color: var(--c-dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.help {
+  color: var(--c-muted);
+  font-size: 14px;
+}

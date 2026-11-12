@@ -96,3 +96,10 @@ export const Lock = (p: P) => (
     <path d="M8 11V8a4 4 0 0 1 8 0v3" />
   </svg>
 );
+
+/** Бумажный самолётик — Telegram */
+export const Telegram = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M21 4L3 11l6 2.5M21 4l-3 15-9-5.5M21 4L9 13.5m0 0V19l3.2-3.5" />
+  </svg>
+);

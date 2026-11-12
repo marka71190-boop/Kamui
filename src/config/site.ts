@@ -50,6 +50,8 @@ export const SELLER = {
   legalAddressEn: "132/1 Obryvnaya St., Krasnodar, 350011, Russia",
   actualAddressEn: "40 Shosse Neftyanikov St., Krasnodar, 350051, Russia",
   phone: "" as string,
+  /** Telegram поддержки (без @) — кнопки «Написать в Telegram» на сайте, в подвале и в документах */
+  telegram: "abramov_shop1" as string,
 } as const;
 
 /** Условия продажи — используются на страницах «Доставка и оплата», «Обмен и возврат» и в оферте. */
@@ -62,10 +64,15 @@ export const SHOP = {
   privacyEdition: "22 октября 2026 г.",
 } as const;
 
+/** Ссылка на Telegram поддержки ("" — не указан) */
+export const telegramUrl = (): string => (SELLER.telegram ? `https://t.me/${SELLER.telegram}` : "");
+
 /** Как связаться с продавцом — одной строкой для документов. */
 export function sellerContactsText(): string {
-  const parts = [SELLER.phone && `по телефону ${SELLER.phone}`, SELLER.email && `по электронной почте ${SELLER.email}`].filter(
-    Boolean,
-  );
+  const parts = [
+    SELLER.phone && `по телефону ${SELLER.phone}`,
+    SELLER.email && `по электронной почте ${SELLER.email}`,
+    SELLER.telegram && `в Telegram @${SELLER.telegram}`,
+  ].filter(Boolean);
   return parts.length ? parts.join(" или ") : `письменно по адресу: ${SELLER.legalAddress}`;
 }

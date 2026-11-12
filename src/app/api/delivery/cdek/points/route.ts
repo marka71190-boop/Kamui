@@ -14,11 +14,15 @@ export async function GET(request: Request) {
   const cityCode = Number(new URL(request.url).searchParams.get("cityCode"));
   if (!Number.isInteger(cityCode) || cityCode <= 0) return json({ ok: false, error: "Не указан cityCode" }, 400);
   try {
-    const points = (await getPickupPoints(cityCode)).map(({ code, name, address, workTime }) => ({
+    const points = (await getPickupPoints(cityCode)).map(({ code, name, address, workTime, latitude, longitude }) => ({
       code,
       name,
       address,
       workTime,
+      // координаты — для карты и кнопки «Рядом со мной»
+      ...(Number.isFinite(latitude) && Number.isFinite(longitude)
+        ? { lat: Math.round(latitude! * 1e5) / 1e5, lon: Math.round(longitude! * 1e5) / 1e5 }
+        : {}),
     }));
     return json({ ok: true, points }, 200, { "Cache-Control": "public, max-age=600, s-maxage=3600" });
   } catch (err) {

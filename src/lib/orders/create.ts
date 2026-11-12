@@ -89,7 +89,8 @@ export function buildOrder(input: OrderInput, opts: CreateOrderOptions = {}): Or
       : { country: input.country, city: input.city, postalCode: input.postalCode, address: input.address },
     ...(kit ? { product: "kit" as const, tip: input.tip } : {}),
     quantity: input.quantity,
-    ...(input.newsletter ? { newsletter: true as const } : {}),
+    // Письма о заказе входят в единое согласие формы (чек, трек-номер)
+    ...(input.consent ? { newsletter: true as const } : {}),
     unitPrice,
     itemsTotal,
     deliveryCost,
@@ -102,7 +103,7 @@ export function buildOrder(input: OrderInput, opts: CreateOrderOptions = {}): Or
         ? { provider: "cdek", label: "СДЭК — уточняется" }
         : { provider: "international", label: "Международная доставка — уточняется" }),
     meta: opts.meta,
-    consents: { personalData: input.consent, orderEmails: input.newsletter, edition: SHOP.privacyEdition },
+    consents: { personalData: input.consent, orderEmails: input.consent, edition: SHOP.privacyEdition },
   };
   return order;
 }

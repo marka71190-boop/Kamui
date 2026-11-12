@@ -28,8 +28,9 @@ import type { StockView } from "@/lib/stock";
 import { useLiveStock } from "@/components/stock/LiveStock";
 import { ArrowRight, Check } from "@/components/ui/Icons";
 import { StockMeter } from "@/components/ui/StockMeter";
-import { CdekPicker, type CdekSelection, type QuoteState } from "./CdekPicker";
+import { CdekPicker, periodText, type CdekSelection, type QuoteState } from "./CdekPicker";
 import { CheckoutProgress } from "./CheckoutProgress";
+import { OrderNumber, orderStatusHref, SupportLink } from "./OrderExtras";
 import { PaymentResult, rememberPayment } from "./PaymentResult";
 import { PRODUCT_EVENT } from "./PurchaseVisual";
 import { QuantityStepper } from "./QuantityStepper";
@@ -99,6 +100,49 @@ const EMPTY: Fields = {
   trap: "",
 };
 
+/**
+ * Черновик формы — на время вкладки (sessionStorage): после перезагрузки страницы или возврата
+ * со страницы оплаты покупателю не нужно вводить всё заново. Согласие в черновик не попадает.
+ */
+const DRAFT_KEY = "kamui:order-draft";
+
+interface Draft {
+  product: ProductId;
+  tip: string;
+  quantity: number;
+  destination: string;
+  open: boolean;
+  fields: Partial<Record<keyof Fields, unknown>>;
+}
+
+function readDraft(): Draft | null {
+  try {
+    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || "null") as Draft | null;
+    return d && typeof d === "object" && d.fields && typeof d.fields === "object" ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(d: Draft) {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  } catch {
+    /* приватный режим — черновика просто не будет */
+  }
+}
+
+function clearDraft() {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* нечего очищать */
+  }
+}
+
+/** Текстовые поля, которые восстанавливаются из черновика */
+const DRAFT_TEXT: (keyof Fields)[] = ["name", "phone", "email", "city", "comment", "country", "postalCode", "address", "pickupPoint", "taxId"];
+
 /** Порядок полей — для фокуса на первой ошибке */
 const FIELD_ORDER: OrderField[] = [
   "tip",
@@ -115,7 +159,6 @@ const FIELD_ORDER: OrderField[] = [
   "address",
   "comment",
   "consent",
-  "newsletter",
 ];
 
 export function OrderPanel({
@@ -192,6 +235,46 @@ export function OrderPanel({
     window.addEventListener("pageshow", onShow);
     return () => window.removeEventListener("pageshow", onShow);
   }, []);
+
+  // Черновик формы: восстанавливаем после перезагрузки или возврата со страницы оплаты…
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  useEffect(() => {
+    const d = readDraft();
+    if (d) {
+      if (d.product === "chalk" || d.product === "kit") setProduct(d.product);
+      if (isKitTip(d.tip)) setTip(d.tip);
+      if (Number.isInteger(d.quantity) && d.quantity >= 1) setQuantity(Math.min(d.quantity, PRODUCT.maxPerOrder));
+      if (lang === "ru" && (d.destination === "OTHER" || allCountries.includes(d.destination as CdekCountryCode)))
+        setDestination(d.destination as Destination);
+      const restored: Partial<Fields> = {};
+      for (const k of DRAFT_TEXT) {
+        const v = d.fields[k];
+        if (typeof v === "string") (restored as Record<string, unknown>)[k] = v.slice(0, 600);
+      }
+      const code = Number(d.fields.cityCode);
+      if (Number.isInteger(code) && code > 0) restored.cityCode = code;
+      setFields((f) => ({ ...f, ...restored }));
+      if (d.open) setStage((s) => (s === "intro" ? "form" : s));
+    }
+    setDraftLoaded(true);
+    // один раз при открытии страницы
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // …и сохраняем при каждом изменении (без согласия и служебных полей)
+  useEffect(() => {
+    if (!draftLoaded || (stage !== "intro" && stage !== "form")) return;
+    const { consent: _c, newsletter: _n, trap: _t, ...rest } = fields;
+    writeDraft({ product, tip, quantity, destination, open: stage === "form", fields: rest });
+  }, [draftLoaded, fields, product, tip, quantity, destination, stage]);
+
+  /** Заказ оформлен или оплачен — форма начинается с чистого листа */
+  const forgetDraft = () => {
+    clearDraft();
+    setFields(EMPTY);
+    setQuantity(1);
+    setSubmitted(false);
+  };
 
   /** Онлайн-оплата включена для этого посетителя */
   const paymentsOn = checkout.payments || (checkout.paymentsTest && payTest !== "");
@@ -393,8 +476,7 @@ export function OrderPanel({
         setSuccessText(body.paymentUnavailable ? tx.noPaymentText : tx.successText);
         setOrderId(body.orderId);
         setStage("success");
-        setFields(EMPTY);
-        setSubmitted(false);
+        forgetDraft();
         rootRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       } else {
         if (body.fieldErrors) setErrors(body.fieldErrors);
@@ -447,7 +529,7 @@ export function OrderPanel({
   if (stage === "payment") {
     return (
       <div ref={rootRef} className={styles.panel}>
-        <PaymentResult orderId={orderId} onReset={resetAfterReturn} />
+        <PaymentResult orderId={orderId} onReset={resetAfterReturn} onPaid={forgetDraft} />
       </div>
     );
   }
@@ -460,12 +542,16 @@ export function OrderPanel({
         </span>
         <p className={styles.successTitle}>{tx.successTitle}</p>
         <p className={styles.successText}>{successText}</p>
+        {orderId && <OrderNumber id={orderId} label={tx.orderNumber} lang={lang} />}
         {orderId && (
-          <p className={styles.orderId}>
-            {tx.orderNumber} <b>{orderId}</b>
+          <p className={styles.successText}>
+            {tx.checkMail}{" "}
+            <a href={orderStatusHref(orderId, lang)} className={styles.link}>
+              {lang === "en" ? "Track your order" : "Где мой заказ"}
+            </a>
           </p>
         )}
-        {orderId && <p className={styles.successText}>{tx.checkMail}</p>}
+        <SupportLink lang={lang} />
         <button
           type="button"
           className="btn btn--ghost"
@@ -630,6 +716,7 @@ export function OrderPanel({
               {paymentsOn ? tx.notePay(payMethods, deliveryAreaText(countries)) : tx.noteRequest}
               {paymentsOn && checkout.robokassa && countries.length > 1 && ` ${tx.noteRobokassa}`}
             </p>
+            <SupportLink lang={lang} text={lang === "en" ? "Questions before ordering?" : "Остались вопросы перед заказом?"} />
           </div>
         )}
 
@@ -909,19 +996,7 @@ export function OrderPanel({
                     {err("consent")}
                   </p>
                 )}
-                {/* Обязательно: согласие на письма о заказе (подтверждение оплаты, трек-номер); рекламы нет */}
-                <label className={`${styles.checkbox} ${styles.newsletter}`}>
-                  <input type="checkbox" name="newsletter" checked={fields.newsletter} onChange={set("newsletter")} {...a11y("newsletter")} />
-                  <span className={styles.checkboxBox} aria-hidden="true">
-                    <Check />
-                  </span>
-                  <span>{tx.newsletter}</span>
-                </label>
-                {err("newsletter") && (
-                  <p id="newsletter-error" className={styles.error} role="alert">
-                    {err("newsletter")}
-                  </p>
-                )}
+                <p className={styles.consentNote}>{tx.newsletter}</p>
               </div>
             </div>
 
@@ -934,7 +1009,10 @@ export function OrderPanel({
                   <b>{money(total)}</b>
                 </p>
                 <p className={styles.breakdownRow}>
-                  <span>Доставка СДЭК</span>
+                  <span>
+                    Доставка СДЭК
+                    {useCdek && quote.state === "ready" && periodText(quote.quote) ? ` · ${periodText(quote.quote)}` : ""}
+                  </span>
                   <b>
                     {!useCdek
                       ? checkout.freeDelivery
@@ -1007,6 +1085,7 @@ export function OrderPanel({
                   : tx.noteIntl}
               </p>
             )}
+            <SupportLink lang={lang} text={lang === "en" ? "Questions before ordering?" : "Остались вопросы перед заказом?"} />
             {tx.otherVersion && (
               <p className={styles.note}>
                 {tx.otherVersion.text}{" "}

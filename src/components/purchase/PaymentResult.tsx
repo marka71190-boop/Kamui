@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatPrice } from "@/lib/format";
 import { ArrowRight, Check } from "@/components/ui/Icons";
+import { OrderNumber, orderStatusHref, SupportLink } from "./OrderExtras";
 import styles from "./Purchase.module.css";
 
 type Status = "checking" | "succeeded" | "pending" | "canceled" | "unknown" | "error";
@@ -29,7 +30,18 @@ function recalledPayment(orderId: string): string {
 
 const MAX_TRIES = 8;
 
-export function PaymentResult({ orderId, onReset }: { orderId: string; onReset: () => void }) {
+export function PaymentResult({
+  orderId,
+  onReset,
+  onPaid,
+}: {
+  orderId: string;
+  onReset: () => void;
+  /** Оплата подтверждена — черновик формы больше не нужен */
+  onPaid?: () => void;
+}) {
+  const onPaidRef = useRef(onPaid);
+  onPaidRef.current = onPaid;
   const [status, setStatus] = useState<Status>("checking");
   const [amount, setAmount] = useState<number | null>(null);
   const [payUrl, setPayUrl] = useState("");
@@ -50,6 +62,7 @@ export function PaymentResult({ orderId, onReset }: { orderId: string; onReset: 
       setPayUrl(data.paymentUrl ?? "");
       const s = data.status;
       if (s === "succeeded" || s === "canceled") {
+        if (s === "succeeded") onPaidRef.current?.();
         setStatus(s);
         return;
       }
@@ -76,13 +89,21 @@ export function PaymentResult({ orderId, onReset }: { orderId: string; onReset: 
     void check();
   };
 
-  const order = (
-    <p className={styles.orderId}>
-      Номер заказа <b>{orderId}</b>
-    </p>
-  );
+  const order = <OrderNumber id={orderId} label="Номер заказа" />;
 
-  const mailHint = <p className={styles.successText}>Проверьте почту — и папку «Спам»: туда придут письма по заказу.</p>;
+  const mailHint = (
+    <>
+      <p className={styles.successText}>
+        Проверьте почту — и папку «Спам»: туда придут письма по заказу. Статус и трек-номер всегда можно посмотреть на
+        странице{" "}
+        <a href={orderStatusHref(orderId)} className={styles.link}>
+          «Где мой заказ»
+        </a>
+        .
+      </p>
+      <SupportLink />
+    </>
+  );
 
   if (status === "checking") {
     return (
@@ -152,6 +173,7 @@ export function PaymentResult({ orderId, onReset }: { orderId: string; onReset: 
           оплаты.
         </p>
         {order}
+        <SupportLink text="Не получается оплатить?" />
         <button type="button" className="btn" onClick={onReset}>
           Оформить заново
           <ArrowRight className="btn__arrow" />
