@@ -6,6 +6,7 @@ import { LiveStockProvider } from "./stock/LiveStock";
 import { Footer } from "./footer/Footer";
 import { Header } from "./header/Header";
 import { Hero } from "./hero/Hero";
+import { MobileBuyBar } from "./purchase/MobileBuyBar";
 import { Purchase } from "./purchase/Purchase";
 import { Collection } from "./sections/Collection";
 import { Faq } from "./sections/Faq";
@@ -60,6 +61,7 @@ export function HomePage({
         />
       </main>
       <Footer lang={lang} />
+      <MobileBuyBar stock={stock} market={market} />
       <RevealObserver />
     </LiveStockProvider>
   );

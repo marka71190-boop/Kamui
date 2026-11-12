@@ -29,6 +29,8 @@ function envNum(v: string | undefined, def: number): number {
 }
 
 /** Сколько дней посылка бесплатно хранится в пункте выдачи (если СДЭК сам не сообщает дату) */
+import { checkLowStock } from "@/lib/warehouse";
+
 export const storageDays = () => envNum(process.env.CDEK_STORAGE_DAYS, 7);
 /** За сколько дней до конца хранения напоминать */
 export const remindDaysBefore = () => envNum(process.env.STORAGE_REMIND_DAYS, 2);
@@ -176,7 +178,10 @@ export function startMailJobs(): void {
         if (r.paid || r.track || r.storage || r.errors.length)
           console.log(`[mail] оплата ${r.paid}, трек ${r.track}, хранение ${r.storage}${r.errors.length ? `, ошибки: ${r.errors.join("; ")}` : ""}`);
       })
-      .catch((err) => console.error("[mail] Проверка писем не удалась:", (err as Error).message));
+      .catch((err) => console.error("[mail] Проверка писем не удалась:", (err as Error).message))
+      // Склад: письмо продавцу, когда товар в наличии заканчивается
+      .then(() => checkLowStock())
+      .catch((err) => console.error("[warehouse] Проверка склада не удалась:", (err as Error).message));
   g[TIMER] = setInterval(tick, 30 * 60 * 1000);
   setTimeout(tick, 60 * 1000);
 }

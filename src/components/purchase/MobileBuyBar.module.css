@@ -1,0 +1,63 @@
+/* Кнопка «Купить» внизу экрана — только на телефонах */
+
+.bar {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .bar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--c-line-2);
+    background: rgba(7, 7, 7, 0.94);
+    backdrop-filter: blur(12px);
+    transform: translateY(110%);
+    transition: transform 0.35s var(--ease-out);
+  }
+
+  .bar[data-show] {
+    transform: none;
+  }
+}
+
+.info {
+  display: grid;
+  gap: 2px;
+  line-height: 1.1;
+}
+
+.info b {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.info span {
+  color: var(--c-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cta {
+  min-height: 48px;
+  padding: 0 26px;
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    transition: none;
+  }
+}

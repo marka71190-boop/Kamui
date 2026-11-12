@@ -5,10 +5,14 @@
  * например, «20 октября – 19 ноября». Страница показывает итог за выбранный период, список его заказов
  * и таблицу по всем периодам. Можно задать и произвольные даты.
  * Считаются оплаченные заказы (оплачен, отправлен, доставлен) по дате оплаты, время московское.
+ * Раздел «Склад»: товар приходит партиями — продавец вносит поступления и «продано вне сайта», страница показывает,
+ * сколько сейчас в наличии; когда остаётся мало, сайт пишет на указанную почту (src/lib/warehouse.ts).
  * Тестовые платежи не учитываются. Нужна база данных (DATABASE_URL). Без правильного токена отвечает 404.
  */
 import { sql } from "@/lib/db/pg";
 import { dbEnabled, ensureSchema } from "@/lib/db/schema";
+import { mailEnabled, validEmail } from "@/lib/mail/notify";
+import { addBatch, checkLowStock, deleteBatch, saveWarehouseSettings, sendStockMail, warehouse, type Warehouse } from "@/lib/warehouse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -153,6 +157,10 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px 12px;
 th{color:var(--dim);font-weight:600;font-size:12px}th:first-child,td:first-child{text-align:left}tr:last-child td{border-bottom:0}
 tr.cur td{background:var(--hi);font-weight:600}tfoot td{font-weight:700;border-top:2px solid var(--line)}
 nav{margin:22px 0 0;color:var(--dim);font-size:13px}
+.msg.ok{background:rgba(29,138,78,.12);color:var(--ok)}.tile.low{border-color:var(--bad)}.tile.low b{color:var(--bad)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0}.box h3{margin:0 0 8px;font-size:15px}
+.box form{margin:0}input[type=number]{width:110px}input.wide{width:220px}button.alt{background:#222}button.link{background:none;color:var(--dim);padding:0;font-weight:400;font-size:13px;text-decoration:underline}
+td form{display:inline;margin:0}.formula{margin:4px 0 0;font-size:13px;color:var(--dim)}
 </style></head><body><main>${body}</main></body></html>`,
     { status, headers: HEADERS },
   );
@@ -171,10 +179,71 @@ ${tile(rub(s.total), "получено всего")}
 </div>`;
 }
 
+const MESSAGES: Record<string, { ok: boolean; text: string }> = {
+  batch: { ok: true, text: "Партия добавлена." },
+  deleted: { ok: true, text: "Запись удалена." },
+  saved: { ok: true, text: "Настройки склада сохранены." },
+  alerted: { ok: true, text: "Изменения сохранены. Товара мало — письмо с предупреждением отправлено." },
+  mailed: { ok: true, text: "Проверочное письмо отправлено — посмотрите почту (и папку «Спам»)." },
+  badqty: { ok: false, text: "Количество — целое число, не ноль (со знаком минус — списание)." },
+  baddate: { ok: false, text: "Укажите дату поступления." },
+  badmail: { ok: false, text: "Проверьте адрес почты." },
+  badnum: { ok: false, text: "«Продано вне сайта» и порог — целые числа от нуля." },
+};
+
+function stockSection(token: string, w: Warehouse, today: string): string {
+  const hid = `<input type="hidden" name="token" value="${esc(token)}">`;
+  const tile = (value: string, label: string, cls = "") => `<div class="tile ${cls}"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
+  const started = w.batches.length > 0;
+  const low = started && w.onHand <= w.threshold;
+  const rows = w.batches.map(
+    (b) =>
+      `<tr><td>${esc(human(b.receivedOn))}${b.note ? ` <span class="dim">· ${esc(b.note)}</span>` : ""}</td><td>${b.qty > 0 ? "+" : ""}${b.qty}</td><td><form method="post" onsubmit="return confirm('Удалить эту запись?')">${hid}<input type="hidden" name="action" value="batch_del"><input type="hidden" name="id" value="${b.id}"><button class="link">удалить</button></form></td></tr>`,
+  );
+  return `<h2>Склад <span class="dim">— сколько товара сейчас в наличии</span></h2>
+${
+  started
+    ? `<div class="tiles">
+${tile(`${w.onHand.toLocaleString("ru-RU")} шт.`, low ? `в наличии — мало (порог ${w.threshold})` : "в наличии", low ? "low" : "main")}
+${tile(`${w.received.toLocaleString("ru-RU")} шт.`, "получено всего")}
+${tile(`${w.soldSite.toLocaleString("ru-RU")} шт.`, "продано на сайте")}
+${tile(`${w.soldOffsite.toLocaleString("ru-RU")} шт.`, "продано вне сайта")}
+</div>
+<p class="formula">В наличии = получено − продано на сайте − продано вне сайта. Подарочный набор считается за один мел.</p>`
+    : `<p class="dim">Склад пока не ведётся. Добавьте первую запись «сколько было получено» и укажите, сколько продано вне сайта, — страница начнёт считать наличие.</p>`
+}
+<div class="box"><h3>Добавить поступление</h3>
+<form method="post">${hid}<input type="hidden" name="action" value="batch_add">
+<label>Дата<input type="date" name="date" value="${esc(today)}" required></label>
+<label>Количество, шт.<input type="number" name="qty" value="100" step="1" required></label>
+<label>Заметка<input class="wide" name="note" maxlength="200" placeholder="например, партия № 3"></label>
+<button type="submit">Добавить</button></form>
+<p class="formula">Ошиблись или нужно списать брак — добавьте запись с минусом (например, −3) или удалите строку ниже.</p></div>
+<div class="box"><h3>Продажи вне сайта и предупреждение</h3>
+<form method="post">${hid}<input type="hidden" name="action" value="wh_save">
+<label>Продано вне сайта, шт. (всего)<input type="number" name="offsite" value="${w.soldOffsite}" min="0" step="1" required></label>
+<label>Написать, когда останется, шт.<input type="number" name="threshold" value="${w.threshold}" min="0" step="1" required></label>
+<label>На почту<input class="wide" type="email" name="email" value="${esc(w.email)}" required></label>
+<button type="submit">Сохранить</button></form>
+<form method="post" style="margin-top:8px">${hid}<input type="hidden" name="action" value="wh_test"><button class="alt" type="submit">Отправить проверочное письмо</button></form>
+<p class="formula">${
+    mailEnabled()
+      ? "Сайт проверяет наличие раз в 30 минут и после каждого изменения здесь. Письмо приходит один раз, когда остаток опускается до порога, и ещё раз — когда товар закончился. После новой партии предупреждение включается снова."
+      : "<b>Письма на сервере не настроены (SMTP_USER / SMTP_PASSWORD)</b> — предупреждение на почту не придёт."
+  }</p></div>
+${
+  rows.length
+    ? `<div class="wrap"><table><thead><tr><th>Поступления</th><th>Шт.</th><th></th></tr></thead><tbody>${rows.join("\n")}</tbody><tfoot><tr><td>Получено всего</td><td>${w.received}</td><td></td></tr></tfoot></table></div>`
+    : ""
+}`;
+}
+
 async function render(token: string, q: URLSearchParams): Promise<Response> {
   if (!dbEnabled())
     return page(`<h1>Продажи</h1><p class="msg">Отчёт считается по базе данных заказов, а она не подключена (переменная DATABASE_URL).</p>`);
   const sales = await loadSales();
+  const wh = await warehouse();
+  const message = MESSAGES[q.get("msg") ?? ""] ?? (q.get("err") ? { ok: false, text: q.get("err")!.slice(0, 300) } : null);
   const now = Date.now();
   const base = `?token=${esc(encodeURIComponent(token))}`;
 
@@ -218,6 +287,9 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
 
   return page(`<h1>Продажи</h1>
 <p class="lead">Отчётный период — с ${START_DAY}-го по ${START_DAY}-е число (${START_DAY}-е уже относится к новому периоду). Считаются оплаченные заказы по дате оплаты, время московское.</p>
+${message ? `<p class="msg${message.ok ? " ok" : ""}">${esc(message.text)}</p>` : ""}
+${stockSection(token, wh, ymd(now))}
+<h2>Продажи за период</h2>
 <form method="get">
 <input type="hidden" name="token" value="${esc(token)}">
 <label>С (включительно)<input type="date" name="from" value="${esc(from)}" required></label>
@@ -250,4 +322,52 @@ export async function GET(request: Request) {
     console.error("[sales]", err);
     return page(`<h1>Продажи</h1><p class="msg">Отчёт не открылся: ${esc(String((err as Error)?.message ?? err).slice(0, 400))}</p>`);
   });
+}
+
+/** Изменения на складе. После действия — переход обратно на страницу (обновление страницы не повторит действие). */
+export async function POST(request: Request) {
+  const form = await request.formData().catch(() => null);
+  const token = String(form?.get("token") ?? "");
+  if (!authorized(token)) return new Response("Not found", { status: 404, headers: { "X-Robots-Tag": "noindex" } });
+  const back = (key: "msg" | "err", value: string) =>
+    new Response(null, {
+      status: 303,
+      headers: { Location: `/sales?token=${encodeURIComponent(token)}&${key}=${encodeURIComponent(value)}`, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
+    });
+  if (!dbEnabled()) return back("err", "База данных не подключена.");
+  const act = String(form?.get("action") ?? "");
+  const whole = (name: string) => {
+    const v = String(form?.get(name) ?? "").trim();
+    return /^-?\d{1,6}$/.test(v) ? Number(v) : NaN;
+  };
+  try {
+    if (act === "batch_add") {
+      const date = String(form?.get("date") ?? "");
+      const qty = whole("qty");
+      if (!isDay(date)) return back("msg", "baddate");
+      if (!Number.isInteger(qty) || qty === 0) return back("msg", "badqty");
+      await addBatch(date, qty, String(form?.get("note") ?? "").trim());
+    } else if (act === "batch_del") {
+      await deleteBatch(whole("id"));
+    } else if (act === "wh_save") {
+      const soldOffsite = whole("offsite");
+      const threshold = whole("threshold");
+      const email = String(form?.get("email") ?? "").trim();
+      if (!(soldOffsite >= 0) || !(threshold >= 0)) return back("msg", "badnum");
+      if (!validEmail(email)) return back("msg", "badmail");
+      await saveWarehouseSettings({ soldOffsite, threshold, email });
+    } else if (act === "wh_test") {
+      await sendStockMail(await warehouse(), false);
+      return back("msg", "mailed");
+    } else return back("err", "Неизвестное действие.");
+    // Наличие изменилось — сразу проверяем, не пора ли предупредить
+    const alert = await checkLowStock().catch((err) => {
+      console.error("[warehouse]", (err as Error).message);
+      return "none" as const;
+    });
+    return back("msg", alert === "sent" ? "alerted" : act === "batch_add" ? "batch" : act === "batch_del" ? "deleted" : "saved");
+  } catch (err) {
+    console.error("[sales]", err);
+    return back("err", `Не получилось: ${String((err as Error).message).slice(0, 200)}`);
+  }
 }

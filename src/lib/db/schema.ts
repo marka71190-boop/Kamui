@@ -6,6 +6,7 @@
  *   consents      — журнал согласий из формы заказа (кто, когда, с какого IP и на что согласился)
  *   order_flags   — пометки продавца: заказ скрыт со страницы, номер накладной, оформленной вручную в СДЭК,
  *                   когда сборщик собрал заказ
+ *   stock_batches — склад: поступления товара партиями (страница /sales)
  *   settings      — служебные отметки (например, когда перенесены старые заказы)
  */
 import { dbConfigured, sqlExec } from "./pg";
@@ -56,6 +57,13 @@ create table if not exists order_flags (
   updated_at timestamptz not null default now()
 );
 alter table order_flags add column if not exists packed_at timestamptz;
+create table if not exists stock_batches (
+  id bigserial primary key,
+  received_on date not null,
+  qty integer not null,
+  note text not null default '',
+  created_at timestamptz not null default now()
+);
 create table if not exists settings (
   key text primary key,
   value text not null,
