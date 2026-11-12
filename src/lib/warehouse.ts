@@ -3,11 +3,12 @@
  *
  * Тираж приходит партиями (например, по 100 шт.), поэтому «в наличии» считается отдельно от остатка тиража на сайте:
  *   В наличии = получено (сумма партий) − продано на сайте (оплаченные заказы из базы) − продано вне сайта.
- * Партии и «продано вне сайта» продавец вводит на странице /sales. Когда в наличии остаётся не больше порога,
+ * Партии и продажи вне сайта (каждую — с датой и суммой, они же идут в выручку отчёта) продавец вводит на странице /sales. Когда в наличии остаётся не больше порога,
  * сайт один раз пишет продавцу на почту; ещё одно письмо — когда товар закончился. После новой партии
  * предупреждение «взводится» заново.
  */
-import { SELLER } from "@/config/site";
+import { KIT } from "@/config/products";
+import { PRODUCT, SELLER } from "@/config/site";
 import { sql } from "@/lib/db/pg";
 import { getSetting, setSetting } from "@/lib/db/settings";
 import { dbEnabled, ensureSchema } from "@/lib/db/schema";
@@ -20,6 +21,54 @@ export interface StockBatch {
   receivedOn: string;
   qty: number;
   note: string;
+}
+
+/** Продажа вне сайта: идёт в выручку отчёта и уменьшает наличие */
+export interface OffsiteSale {
+  id: number;
+  /** «2026-11-01» */
+  soldOn: string;
+  qty: number;
+  /** Получено за эту продажу, ₽ */
+  amount: number;
+  kit: boolean;
+  note: string;
+}
+
+export async function offsiteSales(): Promise<OffsiteSale[]> {
+  await ensureSchema();
+  await migrateOffsiteNumber();
+  const r = await sql<{ id: string; d: string; qty: number; amount: string; kit: boolean; note: string }>(
+    "select id, to_char(sold_on, 'YYYY-MM-DD') as d, qty, amount, kit, note from offsite_sales order by sold_on desc, id desc",
+  );
+  return r.rows.map((o) => ({ id: Number(o.id), soldOn: o.d, qty: Number(o.qty), amount: Number(o.amount) || 0, kit: o.kit, note: o.note }));
+}
+
+/** Цена по умолчанию, если сумму продажи не указали */
+export const defaultOffsiteAmount = (qty: number, kit: boolean) => qty * (kit ? KIT.price : PRODUCT.price);
+
+export async function addOffsiteSale(soldOn: string, qty: number, amount: number, kit: boolean, note: string): Promise<void> {
+  await ensureSchema();
+  await sql("insert into offsite_sales (sold_on, qty, amount, kit, note) values ($1::date, $2, $3, $4, $5)", [soldOn, qty, amount, kit, note.slice(0, 200)]);
+}
+
+export async function deleteOffsiteSale(id: number): Promise<void> {
+  await ensureSchema();
+  await sql("delete from offsite_sales where id = $1", [id]);
+}
+
+/**
+ * Раньше «продано вне сайта» было одним числом без даты и суммы. Переносим его в список продаж одной записью
+ * (сегодняшней датой, по обычной цене мела), чтобы оно попало в выручку; продавец может её удалить и внести точнее.
+ */
+async function migrateOffsiteNumber(): Promise<void> {
+  const old = int(await getSetting(KEY.offsite), 0);
+  if (old <= 0) return;
+  await setSetting(KEY.offsite, "0");
+  await sql(
+    "insert into offsite_sales (sold_on, qty, amount, note) values ((now() at time zone 'Europe/Moscow')::date, $1, $2, $3)",
+    [old, defaultOffsiteAmount(old, false), "перенесено из прежнего поля: дата и сумма примерные — удалите и внесите точнее, если нужно"],
+  );
 }
 
 export interface Warehouse {
@@ -46,6 +95,7 @@ const int = (v: string | null, fallback: number) => {
 
 export async function warehouse(): Promise<Warehouse> {
   await ensureSchema();
+  await migrateOffsiteNumber();
   const [b, sold, offsite, threshold, email, alert] = await Promise.all([
     sql<{ id: string; d: string; qty: number; note: string }>(
       "select id, to_char(received_on, 'YYYY-MM-DD') as d, qty, note from stock_batches order by received_on desc, id desc",
@@ -55,7 +105,7 @@ export async function warehouse(): Promise<Warehouse> {
       `select sum(coalesce(nullif(data->>'quantity', '')::numeric, 1)) as n from orders
         where status in ('paid','shipped','delivered') and coalesce(data->'payment'->>'test', 'false') <> 'true'`,
     ),
-    getSetting(KEY.offsite),
+    sql<{ n: string | null }>("select sum(qty) as n from offsite_sales"),
     getSetting(KEY.threshold),
     getSetting(KEY.email),
     getSetting(KEY.alert),
@@ -63,7 +113,7 @@ export async function warehouse(): Promise<Warehouse> {
   const batches = b.rows.map((r) => ({ id: Number(r.id), receivedOn: r.d, qty: Number(r.qty), note: r.note }));
   const received = batches.reduce((s, x) => s + x.qty, 0);
   const soldSite = Math.round(Number(sold.rows[0]?.n) || 0);
-  const soldOffsite = int(offsite, 0);
+  const soldOffsite = Math.round(Number(offsite.rows[0]?.n) || 0);
   return {
     batches,
     received,
@@ -86,8 +136,7 @@ export async function deleteBatch(id: number): Promise<void> {
   await sql("delete from stock_batches where id = $1", [id]);
 }
 
-export async function saveWarehouseSettings(s: { soldOffsite: number; threshold: number; email: string }): Promise<void> {
-  await setSetting(KEY.offsite, String(s.soldOffsite));
+export async function saveWarehouseSettings(s: { threshold: number; email: string }): Promise<void> {
   await setSetting(KEY.threshold, String(s.threshold));
   await setSetting(KEY.email, s.email);
 }

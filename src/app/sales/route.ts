@@ -7,12 +7,26 @@
  * Считаются оплаченные заказы (оплачен, отправлен, доставлен) по дате оплаты, время московское.
  * Раздел «Склад»: товар приходит партиями — продавец вносит поступления и «продано вне сайта», страница показывает,
  * сколько сейчас в наличии; когда остаётся мало, сайт пишет на указанную почту (src/lib/warehouse.ts).
+ * Продажи вне сайта продавец вносит здесь же (дата, количество, сумма): они входят в выручку периода и уменьшают наличие.
  * Тестовые платежи не учитываются. Нужна база данных (DATABASE_URL). Без правильного токена отвечает 404.
  */
 import { sql } from "@/lib/db/pg";
 import { dbEnabled, ensureSchema } from "@/lib/db/schema";
 import { mailEnabled, validEmail } from "@/lib/mail/notify";
-import { addBatch, checkLowStock, deleteBatch, saveWarehouseSettings, sendStockMail, warehouse, type Warehouse } from "@/lib/warehouse";
+import {
+  addBatch,
+  addOffsiteSale,
+  checkLowStock,
+  defaultOffsiteAmount,
+  deleteBatch,
+  deleteOffsiteSale,
+  offsiteSales,
+  saveWarehouseSettings,
+  sendStockMail,
+  warehouse,
+  type OffsiteSale,
+  type Warehouse,
+} from "@/lib/warehouse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,6 +88,8 @@ interface Sale {
   delivery: number;
   total: number;
   abroad: boolean;
+  /** Продажа вне сайта, внесённая продавцом */
+  offsite?: boolean;
 }
 
 interface Sum {
@@ -83,10 +99,13 @@ interface Sum {
   goods: number;
   delivery: number;
   total: number;
+  /** Из них вне сайта: штук и рублей */
+  offQty: number;
+  offTotal: number;
 }
 
 function sum(list: Sale[]): Sum {
-  const s: Sum = { orders: 0, chalk: 0, kits: 0, goods: 0, delivery: 0, total: 0 };
+  const s: Sum = { orders: 0, chalk: 0, kits: 0, goods: 0, delivery: 0, total: 0, offQty: 0, offTotal: 0 };
   for (const o of list) {
     s.orders += 1;
     if (o.kit) s.kits += o.qty;
@@ -94,9 +113,28 @@ function sum(list: Sale[]): Sum {
     s.goods += o.goods;
     s.delivery += o.delivery;
     s.total += o.total;
+    if (o.offsite) {
+      s.offQty += o.qty;
+      s.offTotal += o.total;
+    }
   }
   return s;
 }
+
+/** Продажи вне сайта в том же виде, что заказы сайта (время — полдень указанного дня) */
+const offsiteAsSales = (list: OffsiteSale[]): Sale[] =>
+  list.map((o) => ({
+    id: "вне сайта",
+    at: startOf(o.soldOn) + DAY / 2,
+    name: o.note,
+    qty: o.qty,
+    kit: o.kit,
+    goods: o.amount,
+    delivery: 0,
+    total: o.amount,
+    abroad: false,
+    offsite: true,
+  }));
 
 async function loadSales(): Promise<Sale[]> {
   await ensureSchema();
@@ -159,7 +197,7 @@ tr.cur td{background:var(--hi);font-weight:600}tfoot td{font-weight:700;border-t
 nav{margin:22px 0 0;color:var(--dim);font-size:13px}
 .msg.ok{background:rgba(29,138,78,.12);color:var(--ok)}.tile.low{border-color:var(--bad)}.tile.low b{color:var(--bad)}
 .box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0}.box h3{margin:0 0 8px;font-size:15px}
-.box form{margin:0}input[type=number]{width:110px}input.wide{width:220px}button.alt{background:#222}button.link{background:none;color:var(--dim);padding:0;font-weight:400;font-size:13px;text-decoration:underline}
+.box form{margin:0}input[type=number]{width:110px}select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:inherit}details{margin-top:10px;font-size:14px}summary{cursor:pointer;color:var(--dim)}input.wide{width:220px}button.alt{background:#222}button.link{background:none;color:var(--dim);padding:0;font-weight:400;font-size:13px;text-decoration:underline}
 td form{display:inline;margin:0}.formula{margin:4px 0 0;font-size:13px;color:var(--dim)}
 </style></head><body><main>${body}</main></body></html>`,
     { status, headers: HEADERS },
@@ -172,8 +210,9 @@ function tiles(s: Sum): string {
 ${tile(`${(s.chalk + s.kits).toLocaleString("ru-RU")} шт.`, "продано всего (мел + наборы)", true)}
 ${tile(`${s.chalk.toLocaleString("ru-RU")} шт.`, "мел")}
 ${tile(`${s.kits.toLocaleString("ru-RU")} шт.`, "подарочные наборы")}
-${tile(String(s.orders), "заказов")}
-${tile(rub(s.goods), "выручка за товар")}
+${tile(String(s.orders), "заказов и продаж")}
+${tile(`${s.offQty.toLocaleString("ru-RU")} шт. · ${rub(s.offTotal)}`, "из них вне сайта")}
+${tile(rub(s.goods), "выручка за товар (сайт + вне сайта)")}
 ${tile(rub(s.delivery), "доставка, оплаченная покупателями")}
 ${tile(rub(s.total), "получено всего")}
 </div>`;
@@ -181,6 +220,8 @@ ${tile(rub(s.total), "получено всего")}
 
 const MESSAGES: Record<string, { ok: boolean; text: string }> = {
   batch: { ok: true, text: "Партия добавлена." },
+  sale: { ok: true, text: "Продажа вне сайта добавлена — она учтена в выручке и в наличии." },
+  badsale: { ok: false, text: "Количество — целое число больше нуля, сумма — число от нуля (или оставьте пустой)." },
   deleted: { ok: true, text: "Запись удалена." },
   saved: { ok: true, text: "Настройки склада сохранены." },
   alerted: { ok: true, text: "Изменения сохранены. Товара мало — письмо с предупреждением отправлено." },
@@ -188,10 +229,10 @@ const MESSAGES: Record<string, { ok: boolean; text: string }> = {
   badqty: { ok: false, text: "Количество — целое число, не ноль (со знаком минус — списание)." },
   baddate: { ok: false, text: "Укажите дату поступления." },
   badmail: { ok: false, text: "Проверьте адрес почты." },
-  badnum: { ok: false, text: "«Продано вне сайта» и порог — целые числа от нуля." },
+  badnum: { ok: false, text: "Порог — целое число от нуля." },
 };
 
-function stockSection(token: string, w: Warehouse, today: string): string {
+function stockSection(token: string, w: Warehouse, today: string, offsite: OffsiteSale[]): string {
   const hid = `<input type="hidden" name="token" value="${esc(token)}">`;
   const tile = (value: string, label: string, cls = "") => `<div class="tile ${cls}"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
   const started = w.batches.length > 0;
@@ -219,9 +260,27 @@ ${tile(`${w.soldOffsite.toLocaleString("ru-RU")} шт.`, "продано вне 
 <label>Заметка<input class="wide" name="note" maxlength="200" placeholder="например, партия № 3"></label>
 <button type="submit">Добавить</button></form>
 <p class="formula">Ошиблись или нужно списать брак — добавьте запись с минусом (например, −3) или удалите строку ниже.</p></div>
-<div class="box"><h3>Продажи вне сайта и предупреждение</h3>
+<div class="box"><h3>Добавить продажу вне сайта</h3>
+<form method="post">${hid}<input type="hidden" name="action" value="sale_add">
+<label>Дата<input type="date" name="date" value="${esc(today)}" required></label>
+<label>Товар<select name="kind"><option value="chalk">мел</option><option value="kit">подарочный набор</option></select></label>
+<label>Количество, шт.<input type="number" name="qty" value="1" min="1" step="1" required></label>
+<label>Сумма всего, ₽<input type="number" name="amount" min="0" step="1" placeholder="по цене сайта" style="width:160px"></label>
+<label>Заметка<input class="wide" name="note" maxlength="200" placeholder="кому / где продали"></label>
+<button type="submit">Добавить</button></form>
+<p class="formula">Продажа попадает в выручку того периода, на который приходится дата, и уменьшает наличие. Сумму можно не указывать — тогда посчитается по цене сайта. Продажи до запуска сайта можно внести одной строкой.</p>
+${
+  offsite.length
+    ? `<details${offsite.length <= 5 ? " open" : ""}><summary>Продажи вне сайта · ${offsite.length} · ${w.soldOffsite} шт. · ${esc(rub(offsite.reduce((s, o) => s + o.amount, 0)))}</summary><div class="wrap" style="margin-top:8px"><table><thead><tr><th>Дата</th><th>Товар</th><th>Сумма</th><th></th></tr></thead><tbody>${offsite
+        .map(
+          (o) =>
+            `<tr><td>${esc(human(o.soldOn))}${o.note ? ` <span class="dim" style="white-space:normal">· ${esc(o.note)}</span>` : ""}</td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.amount))}</td><td><form method="post" onsubmit="return confirm('Удалить эту продажу?')">${hid}<input type="hidden" name="action" value="sale_del"><input type="hidden" name="id" value="${o.id}"><button class="link">удалить</button></form></td></tr>`,
+        )
+        .join("\n")}</tbody></table></div></details>`
+    : ""
+}</div>
+<div class="box"><h3>Предупреждение на почту</h3>
 <form method="post">${hid}<input type="hidden" name="action" value="wh_save">
-<label>Продано вне сайта, шт. (всего)<input type="number" name="offsite" value="${w.soldOffsite}" min="0" step="1" required></label>
 <label>Написать, когда останется, шт.<input type="number" name="threshold" value="${w.threshold}" min="0" step="1" required></label>
 <label>На почту<input class="wide" type="email" name="email" value="${esc(w.email)}" required></label>
 <button type="submit">Сохранить</button></form>
@@ -241,7 +300,8 @@ ${
 async function render(token: string, q: URLSearchParams): Promise<Response> {
   if (!dbEnabled())
     return page(`<h1>Продажи</h1><p class="msg">Отчёт считается по базе данных заказов, а она не подключена (переменная DATABASE_URL).</p>`);
-  const sales = await loadSales();
+  const offsite = await offsiteSales();
+  const sales = [...(await loadSales()), ...offsiteAsSales(offsite)].sort((x, y) => y.at - x.at);
   const wh = await warehouse();
   const message = MESSAGES[q.get("msg") ?? ""] ?? (q.get("err") ? { ok: false, text: q.get("err")!.slice(0, 300) } : null);
   const now = Date.now();
@@ -270,7 +330,7 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
   for (let p = first; p <= current; p = nextPeriod(p)) periods.push(p);
   periods.reverse();
   const cells = (s: Sum) =>
-    `<td>${s.chalk + s.kits}</td><td>${s.chalk}</td><td>${s.kits}</td><td>${s.orders}</td><td>${esc(rub(s.goods))}</td><td>${esc(rub(s.total))}</td>`;
+    `<td>${s.chalk + s.kits}</td><td>${s.chalk}</td><td>${s.kits}</td><td>${s.orders}</td><td>${s.offQty}</td><td>${esc(rub(s.goods))}</td><td>${esc(rub(s.total))}</td>`;
   const periodRows = periods.map((p) => {
     const end = ymd(startOf(nextPeriod(p)) - DAY);
     const s = sum(byPeriod.get(p) ?? []);
@@ -282,13 +342,15 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
     new Date(t).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   const orderRows = chosen.map(
     (o) =>
-      `<tr><td>${esc(o.id)} <span class="dim">· ${esc(when(o.at))}${o.abroad ? " · из-за рубежа" : ""}</span><br><span class="dim">${esc(o.name)}</span></td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.goods))}</td><td>${esc(rub(o.delivery))}</td><td>${esc(rub(o.total))}</td></tr>`,
+      o.offsite
+        ? `<tr><td><b>Вне сайта</b> <span class="dim">· ${esc(human(ymd(o.at)))}</span>${o.name ? `<br><span class="dim" style="white-space:normal">${esc(o.name)}</span>` : ""}</td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.goods))}</td><td>—</td><td>${esc(rub(o.total))}</td></tr>`
+        : `<tr><td>${esc(o.id)} <span class="dim">· ${esc(when(o.at))}${o.abroad ? " · из-за рубежа" : ""}</span><br><span class="dim">${esc(o.name)}</span></td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.goods))}</td><td>${esc(rub(o.delivery))}</td><td>${esc(rub(o.total))}</td></tr>`,
   );
 
   return page(`<h1>Продажи</h1>
 <p class="lead">Отчётный период — с ${START_DAY}-го по ${START_DAY}-е число (${START_DAY}-е уже относится к новому периоду). Считаются оплаченные заказы по дате оплаты, время московское.</p>
 ${message ? `<p class="msg${message.ok ? " ok" : ""}">${esc(message.text)}</p>` : ""}
-${stockSection(token, wh, ymd(now))}
+${stockSection(token, wh, ymd(now), offsite)}
 <h2>Продажи за период</h2>
 <form method="get">
 <input type="hidden" name="token" value="${esc(token)}">
@@ -301,7 +363,7 @@ ${custom ? `<a href="${base}">текущий период</a>` : ""}
 ${tiles(total)}
 <h2>По периодам</h2>
 <div class="wrap"><table>
-<thead><tr><th>Период</th><th>Продано, шт.</th><th>Мел</th><th>Наборы</th><th>Заказов</th><th>За товар</th><th>Получено всего</th></tr></thead>
+<thead><tr><th>Период</th><th>Продано, шт.</th><th>Мел</th><th>Наборы</th><th>Заказов</th><th>Вне сайта, шт.</th><th>За товар</th><th>Получено всего</th></tr></thead>
 <tbody>${periodRows.join("\n")}</tbody>
 <tfoot><tr><td>За всё время</td>${cells(sum(sales))}</tr></tfoot>
 </table></div>
@@ -311,7 +373,7 @@ ${
     ? `<div class="wrap"><table><thead><tr><th>Заказ</th><th>Товар</th><th>За товар</th><th>Доставка</th><th>Всего</th></tr></thead><tbody>${orderRows.join("\n")}</tbody></table></div>`
     : `<p class="dim">За этот период оплаченных заказов нет.</p>`
 }
-<nav><a href="/cdek-orders${base}">← Накладные СДЭК</a> · В отчёт попадают заказы сайта из базы данных; продажи вне сайта (SOLD_COUNT) здесь не учитываются.</nav>`);
+<nav><a href="/cdek-orders${base}">← Накладные СДЭК</a> · В отчёт попадают оплаченные заказы сайта из базы данных и продажи вне сайта, внесённые на этой странице.</nav>`);
 }
 
 export async function GET(request: Request) {
@@ -349,13 +411,23 @@ export async function POST(request: Request) {
       await addBatch(date, qty, String(form?.get("note") ?? "").trim());
     } else if (act === "batch_del") {
       await deleteBatch(whole("id"));
+    } else if (act === "sale_add") {
+      const date = String(form?.get("date") ?? "");
+      const qty = whole("qty");
+      const kit = form?.get("kind") === "kit";
+      const raw = String(form?.get("amount") ?? "").trim().replace(/\s/g, "").replace(",", ".");
+      const amount = raw === "" ? defaultOffsiteAmount(qty, kit) : Number(raw);
+      if (!isDay(date)) return back("msg", "baddate");
+      if (!(qty > 0) || !Number.isFinite(amount) || amount < 0 || amount > 1e9) return back("msg", "badsale");
+      await addOffsiteSale(date, qty, Math.round(amount), kit, String(form?.get("note") ?? "").trim());
+    } else if (act === "sale_del") {
+      await deleteOffsiteSale(whole("id"));
     } else if (act === "wh_save") {
-      const soldOffsite = whole("offsite");
       const threshold = whole("threshold");
       const email = String(form?.get("email") ?? "").trim();
-      if (!(soldOffsite >= 0) || !(threshold >= 0)) return back("msg", "badnum");
+      if (!(threshold >= 0)) return back("msg", "badnum");
       if (!validEmail(email)) return back("msg", "badmail");
-      await saveWarehouseSettings({ soldOffsite, threshold, email });
+      await saveWarehouseSettings({ threshold, email });
     } else if (act === "wh_test") {
       await sendStockMail(await warehouse(), false);
       return back("msg", "mailed");
@@ -365,7 +437,7 @@ export async function POST(request: Request) {
       console.error("[warehouse]", (err as Error).message);
       return "none" as const;
     });
-    return back("msg", alert === "sent" ? "alerted" : act === "batch_add" ? "batch" : act === "batch_del" ? "deleted" : "saved");
+    return back("msg", alert === "sent" ? "alerted" : act === "batch_add" ? "batch" : act === "sale_add" ? "sale" : act === "batch_del" || act === "sale_del" ? "deleted" : "saved");
   } catch (err) {
     console.error("[sales]", err);
     return back("err", `Не получилось: ${String((err as Error).message).slice(0, 200)}`);

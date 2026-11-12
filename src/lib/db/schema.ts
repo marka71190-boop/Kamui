@@ -7,6 +7,7 @@
  *   order_flags   — пометки продавца: заказ скрыт со страницы, номер накладной, оформленной вручную в СДЭК,
  *                   когда сборщик собрал заказ
  *   stock_batches — склад: поступления товара партиями (страница /sales)
+ *   offsite_sales — продажи вне сайта (вносит продавец на странице /sales): идут в выручку и уменьшают наличие
  *   settings      — служебные отметки (например, когда перенесены старые заказы)
  */
 import { dbConfigured, sqlExec } from "./pg";
@@ -61,6 +62,15 @@ create table if not exists stock_batches (
   id bigserial primary key,
   received_on date not null,
   qty integer not null,
+  note text not null default '',
+  created_at timestamptz not null default now()
+);
+create table if not exists offsite_sales (
+  id bigserial primary key,
+  sold_on date not null,
+  qty integer not null,
+  amount numeric not null default 0,
+  kit boolean not null default false,
   note text not null default '',
   created_at timestamptz not null default now()
 );
