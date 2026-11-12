@@ -8,6 +8,9 @@ import { CDEK_COUNTRIES, enabledCdekCountries, type CdekCountryCode } from "./cd
 
 const on = (v: string | undefined) => v === "true" || v === "1";
 
+/** Добавка к наценке на доставку, процентных пунктов: прибавляется к DELIVERY_MARKUP_PERCENT (30 → 35) */
+const DELIVERY_MARKUP_EXTRA = 5;
+
 export const features = {
   /** Google Таблица с заказами (Apps Script веб-приложение) */
   get googleSheets() {
@@ -41,10 +44,13 @@ export const features = {
   get paymentsTestShop() {
     return (process.env.YOOKASSA_SECRET_KEY ?? "").startsWith("test_");
   },
-  /** Наценка к тарифу СДЭК для покупателя, % (DELIVERY_MARKUP_PERCENT, например 30). */
+  /**
+   * Наценка к тарифу СДЭК для покупателя, %: DELIVERY_MARKUP_PERCENT (например 30) + DELIVERY_MARKUP_EXTRA.
+   * Покупатель видит только итоговую стоимость доставки.
+   */
   get deliveryMarkupPercent() {
     const n = Number(process.env.DELIVERY_MARKUP_PERCENT || 0);
-    return Number.isFinite(n) && n > 0 ? n : 0;
+    return (Number.isFinite(n) && n > 0 ? n : 0) + DELIVERY_MARKUP_EXTRA;
   },
   /**
    * Robokassa — оплата заказов с доставкой за пределы России (карты зарубежных банков).
