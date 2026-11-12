@@ -1,0 +1,296 @@
+/* Экран ожидания оплаты / отправки заявки */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(5, 5, 6, 0.8);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.25s var(--ease-out) both;
+}
+
+.card {
+  position: relative;
+  width: min(420px, 100%);
+  overflow: hidden;
+  padding: 40px clamp(20px, 5vw, 36px) 28px;
+  border: 1px solid var(--c-line-2);
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(227, 22, 27, 0.14), transparent 60%),
+    var(--c-graphite);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  animation: rise 0.45s var(--ease-out) both;
+}
+
+/* ---------- полоска прогресса сверху ---------- */
+
+.bar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.bar span {
+  position: relative;
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--c-red-deep), var(--c-red-hi));
+  box-shadow: 0 0 12px var(--c-red-glow);
+  transition: width 0.8s var(--ease-out);
+}
+
+.bar span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* ---------- кольцо с кубиком мела ---------- */
+
+.loader {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  margin: 0 auto 22px;
+}
+
+.ring,
+.ringGlow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.ring {
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  border-top-color: var(--c-red);
+  border-right-color: var(--c-red);
+  animation: spin 1s linear infinite;
+}
+
+.ringGlow {
+  inset: -6px;
+  border: 1px solid transparent;
+  border-top-color: rgba(255, 45, 50, 0.35);
+  filter: blur(2px);
+  animation: spin 1.6s linear infinite reverse;
+}
+
+.cube {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(160deg, #3a3d44, #1a1b1f 70%);
+  box-shadow: inset 0 3px 0 rgba(160, 175, 200, 0.5);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+/* ---------- текст и шаги ---------- */
+
+.title {
+  margin: 0 0 20px;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 7vw, 34px);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.steps {
+  display: grid;
+  gap: 12px;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 320px;
+  list-style: none;
+  text-align: left;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--c-dim);
+  font-size: 14px;
+  line-height: 1.35;
+  transition: color 0.3s ease;
+}
+
+.step[data-state="active"] {
+  color: var(--c-text);
+}
+
+.step[data-state="done"] {
+  color: var(--c-muted);
+}
+
+.mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--c-line-2);
+  border-radius: 50%;
+  transition:
+    border-color 0.3s ease,
+    background-color 0.3s ease;
+}
+
+.mark svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.4;
+  animation: pop 0.35s var(--ease-out) both;
+}
+
+.step[data-state="done"] .mark {
+  border-color: rgba(62, 207, 142, 0.55);
+  background: rgba(62, 207, 142, 0.12);
+  color: var(--c-success);
+}
+
+.step[data-state="active"] .mark {
+  border-color: var(--c-red);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.step[data-state="active"] .dot {
+  background: var(--c-red-hi);
+  box-shadow: 0 0 0 0 var(--c-red-glow);
+  animation: pulse 1.2s ease-out infinite;
+}
+
+.note {
+  min-height: 2.6em;
+  margin: 22px 0 0;
+  color: var(--c-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.fallback {
+  margin: 10px 0 0;
+  color: var(--c-muted);
+  font-size: 13px;
+}
+
+.fallbackLink {
+  color: var(--c-text);
+  text-decoration: underline;
+  text-decoration-color: var(--c-red);
+  text-underline-offset: 3px;
+}
+
+.secure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--c-line);
+  color: var(--c-dim);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.secure svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- анимации ---------- */
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(0.92) rotate(0deg);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.04) rotate(8deg);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 45, 50, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(255, 45, 50, 0);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(14px) scale(0.98);
+    opacity: 0;
+  }
+}
+
+/*
+ * Если в системе включено «уменьшение движения» (например, в Windows выключены анимации),
+ * общий стиль сайта останавливает все анимации. Для индикатора загрузки движение — единственный
+ * признак того, что сайт работает, поэтому кольцо и точка продолжают двигаться, но спокойнее.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ring {
+    animation: spin 1.4s linear infinite !important;
+  }
+
+  .step[data-state="active"] .dot {
+    animation: pulse 1.6s ease-out infinite !important;
+  }
+
+  .bar span::after {
+    animation: shimmer 2s ease-in-out infinite !important;
+  }
+}

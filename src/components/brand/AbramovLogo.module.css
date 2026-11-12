@@ -1,0 +1,136 @@
+/* Анимированный логотип Abramov Shop */
+
+.logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.markLine {
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  opacity: 0;
+}
+
+.shine {
+  opacity: 0;
+}
+
+/* Пока логотип не появился на экране — части спрятаны (только если работает JS);
+   анимации ниже (fill-mode both) их показывают */
+@media (scripting: enabled) {
+  .markFill,
+  .bar,
+  .letter {
+    opacity: 0;
+  }
+}
+
+.logo:global(.is-in) .markLine {
+  animation:
+    draw 1.3s cubic-bezier(0.65, 0, 0.35, 1) 0.15s both,
+    fadeOut 0.6s ease 1.5s forwards;
+}
+
+.logo:global(.is-in) .markFill {
+  animation: fillIn 0.9s var(--ease-out) 1s both;
+}
+
+.logo:global(.is-in) .bar {
+  animation: slideBar 1.1s var(--ease-out) 0.75s both;
+}
+
+.logo:global(.is-in) .letter {
+  animation: letterIn 0.7s var(--ease-out) both;
+}
+
+.logo:global(.is-in) .shine {
+  animation: shine 1.4s cubic-bezier(0.45, 0, 0.25, 1) 2.2s both;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+    opacity: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fillIn {
+  from {
+    opacity: 0;
+    filter: brightness(1.6);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* Полоса «съезжает» по своей диагонали сверху справа */
+@keyframes slideBar {
+  from {
+    opacity: 0;
+    transform: translate(46px, -60px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes letterIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Узкий блик один раз проходит слева направо, когда логотип собран */
+@keyframes shine {
+  0% {
+    opacity: 0;
+    transform: translateX(0) skewX(-18deg);
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(620px) skewX(-18deg);
+  }
+}
+
+/* «Уменьшение движения»: логотип появляется сразу целиком, без прорисовки и блика */
+@media (prefers-reduced-motion: reduce) {
+  .logo:global(.is-in) .shine,
+  .logo:global(.is-in) .markLine {
+    animation: none;
+  }
+
+  .logo:global(.is-in) .markFill,
+  .logo:global(.is-in) .bar,
+  .logo:global(.is-in) .letter {
+    animation-delay: 0s !important;
+  }
+}

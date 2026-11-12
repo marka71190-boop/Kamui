@@ -1,0 +1,12 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file: .env
+    environment:
+      ORDERS_FILE_PATH: /app/data/orders.jsonl
+    volumes:
+      # заявки сохраняются на диске сервера и не теряются при обновлении
+      - ./data:/app/data

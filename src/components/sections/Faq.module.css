@@ -1,0 +1,87 @@
+.faq {
+  border-top: 1px solid var(--c-line);
+  background: radial-gradient(45% 55% at 90% 10%, rgba(227, 22, 27, 0.05), transparent 70%), var(--c-bg);
+}
+
+/* В заголовке смешаны латиница и кириллица: у Bebas нет кириллицы, поэтому весь заголовок — одним шрифтом Oswald */
+.title {
+  font-family: var(--font-oswald), var(--font-display);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(40px, 6vw, 96px);
+  align-items: start;
+}
+
+.list {
+  border-top: 1px solid var(--c-line-2);
+}
+
+.item {
+  border-bottom: 1px solid var(--c-line-2);
+}
+
+.question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.question::-webkit-details-marker {
+  display: none;
+}
+
+.question h3 {
+  margin: 0;
+  font-size: clamp(16px, 1.4vw, 19px);
+  font-weight: 600;
+  line-height: 1.4;
+  transition: color 0.2s ease;
+}
+
+.question:hover h3,
+.item[open] .question h3 {
+  color: var(--c-text);
+}
+
+.icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--c-red);
+  transition: transform 0.3s var(--ease-out);
+}
+
+.item[open] .icon {
+  transform: rotate(45deg);
+}
+
+.question:focus-visible {
+  outline: 2px solid var(--c-red);
+  outline-offset: 4px;
+}
+
+.answer {
+  max-width: 62ch;
+  margin: 0;
+  padding: 0 44px 24px 0;
+  color: var(--c-muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .answer {
+    padding-right: 0;
+  }
+}

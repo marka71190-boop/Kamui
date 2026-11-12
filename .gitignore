@@ -1,0 +1,22 @@
+# зависимости
+/node_modules
+
+# сборка Next.js
+/.next/
+/out/
+next-env.d.ts.bak
+*.tsbuildinfo
+
+# переменные окружения (секреты!)
+.env
+.env.local
+.env.*.local
+
+# заявки покупателей — персональные данные, не коммитить!
+/data/*
+!/data/.gitkeep
+
+# системное
+.DS_Store
+npm-debug.log*
+.vercel
