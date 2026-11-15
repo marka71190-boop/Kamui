@@ -7,7 +7,7 @@ import { cdekCountry, deliveryAreaText, type CdekCountryCode } from "@/config/cd
 import type { CheckoutConfig } from "@/config/features";
 import { GALLERY } from "@/config/gallery";
 import { KIT_EVENT, KIT_PHOTO } from "@/config/kit-visual";
-import { isKitTip, isWholesale, KIT_TIPS, priceFor, WHOLESALE, type ProductId } from "@/config/products";
+import { clampTips, EXTRA_TIP, isKitTip, isWholesale, KIT_TIPS, priceFor, SERVICE_FEE, WHOLESALE, type ProductId } from "@/config/products";
 import { PRODUCT } from "@/config/site";
 import { t } from "@/i18n/dict";
 import { RU_MARKET, type Market } from "@/i18n/market";
@@ -38,7 +38,7 @@ import styles from "./Purchase.module.css";
 
 type Stage = "intro" | "form" | "success" | "payment";
 
-type Fields = Omit<OrderInput, "quantity" | "region" | "deliveryCountry" | "payTest" | "lang" | "product" | "tip">;
+type Fields = Omit<OrderInput, "quantity" | "region" | "deliveryCountry" | "payTest" | "lang" | "product" | "tip" | "tips">;
 
 /** Куда доставляем: страна СДЭК (RU, BY, KZ, AM, KG) или «Другая страна» — заявка менеджеру */
 type Destination = CdekCountryCode | "OTHER";
@@ -110,6 +110,7 @@ interface Draft {
   product: ProductId;
   tip: string;
   quantity: number;
+  tips?: number;
   destination: string;
   open: boolean;
   fields: Partial<Record<keyof Fields, unknown>>;
@@ -181,6 +182,8 @@ export function OrderPanel({
   /** Мел или подарочный набор; у набора — наклейка JOS */
   const [product, setProduct] = useState<ProductId>("chalk");
   const [tip, setTip] = useState("");
+  /** Докупленные наклейки JOS PM (выбор Иосифа) */
+  const [tips, setTips] = useState(0);
   const [destination, setDestination] = useState<Destination>(lang === "en" ? "OTHER" : "RU");
   const region: OrderInput["region"] = destination === "OTHER" ? "intl" : "ru";
   const deliveryCountry: CdekCountryCode = destination === "OTHER" ? "RU" : destination;
@@ -244,6 +247,7 @@ export function OrderPanel({
       if (d.product === "chalk" || d.product === "kit") setProduct(d.product);
       if (isKitTip(d.tip)) setTip(d.tip);
       if (Number.isInteger(d.quantity) && d.quantity >= 1) setQuantity(Math.min(d.quantity, PRODUCT.maxPerOrder));
+      setTips(clampTips(d.tips));
       if (lang === "ru" && (d.destination === "OTHER" || allCountries.includes(d.destination as CdekCountryCode)))
         setDestination(d.destination as Destination);
       const restored: Partial<Fields> = {};
@@ -265,14 +269,15 @@ export function OrderPanel({
   useEffect(() => {
     if (!draftLoaded || (stage !== "intro" && stage !== "form")) return;
     const { consent: _c, newsletter: _n, trap: _t, ...rest } = fields;
-    writeDraft({ product, tip, quantity, destination, open: stage === "form", fields: rest });
-  }, [draftLoaded, fields, product, tip, quantity, destination, stage]);
+    writeDraft({ product, tip, quantity, tips, destination, open: stage === "form", fields: rest });
+  }, [draftLoaded, fields, product, tip, quantity, tips, destination, stage]);
 
   /** Заказ оформлен или оплачен — форма начинается с чистого листа */
   const forgetDraft = () => {
     clearDraft();
     setFields(EMPTY);
     setQuantity(1);
+    setTips(0);
     setSubmitted(false);
   };
 
@@ -301,7 +306,7 @@ export function OrderPanel({
   });
 
   const input = (): OrderInput =>
-    normalizeOrderInput({ ...fields, quantity, product, tip, ...where(destination), payTest, lang });
+    normalizeOrderInput({ ...fields, quantity, product, tip, tips, ...where(destination), payTest, lang });
 
   const revalidate = (
     next: Partial<Fields> = {},
@@ -506,6 +511,11 @@ export function OrderPanel({
   const money = (v: number) => formatMoney(v, abroad ? "USD" : market.currency);
   const total = unitPrice * quantity;
   const formOpen = stage === "form";
+  /** Наклейки и сервисный сбор — в валюте заказа */
+  const usdPrices = Boolean(abroad) || market.currency === "USD";
+  const tipPrice = usdPrices ? EXTRA_TIP.priceUsd : EXTRA_TIP.price;
+  const serviceFee = usdPrices ? SERVICE_FEE.priceUsd : SERVICE_FEE.price;
+  const tipsTotal = tipPrice * tips;
   const deliveryCost =
     useCdek && quote.state === "ready"
       ? checkout.freeDelivery
@@ -514,10 +524,13 @@ export function OrderPanel({
           ? (quote.quote.usd ?? Math.ceil(quote.quote.cost / abroad.rate))
           : quote.quote.cost
       : 0;
-  const grandTotal = total + deliveryCost;
-  /** Сколько спишется в рублях (для заказов из-за рубежа) */
+  const grandTotal = Math.round((total + tipsTotal + serviceFee + deliveryCost) * 100) / 100;
+  /** Сколько спишется в рублях (для заказов из-за рубежа) — так же, как считает сервер */
   const payRub = abroad
-    ? Math.round(unitPrice * abroad.rate) * quantity + Math.round(deliveryCost * abroad.rate)
+    ? Math.round(unitPrice * abroad.rate) * quantity +
+      Math.round(tipPrice * abroad.rate) * tips +
+      Math.round(serviceFee * abroad.rate) +
+      Math.round(deliveryCost * abroad.rate)
     : grandTotal;
 
   const resetAfterReturn = () => {
@@ -697,6 +710,17 @@ export function OrderPanel({
           <p id="quantity-error" className={styles.error} role="alert">
             {err("quantity")}
           </p>
+        )}
+
+        {!soldOut && (
+          <div className={styles.addon} data-on={tips > 0 || undefined}>
+            <p className={styles.addonText}>
+              <b id="tips-label">{tx.tipsTitle}</b>
+              <span>{tx.tipsSub(money(tipPrice))}</span>
+            </p>
+            <QuantityStepper value={tips} min={0} max={EXTRA_TIP.maxPerOrder} onChange={setTips} labelledBy="tips-label" lang={lang} />
+            {tips > 0 && <b className={styles.addonSum}>+{money(tipsTotal)}</b>}
+          </div>
         )}
 
         {!formOpen && (
@@ -898,6 +922,7 @@ export function OrderPanel({
                   value={{ city: fields.city, cityCode: fields.cityCode, pickupPoint: fields.pickupPoint }}
                   quantity={quantity}
                   product={product}
+                  tips={tips}
                   freeDelivery={checkout.freeDelivery}
                   cityError={err("city")}
                   pointError={err("pickupPoint")}
@@ -1000,17 +1025,29 @@ export function OrderPanel({
               </div>
             </div>
 
-            {(useCdek || payOnline) && (
-              <div className={styles.breakdown} aria-live="polite">
+            <div className={styles.breakdown} aria-live="polite">
                 <p className={styles.breakdownRow}>
                   <span>
-                    {kit ? tx.goodsKit : "Товар"} · {quantity} шт.
+                    {kit ? tx.goodsKit : tx.goods} · {lang === "en" ? `${quantity} pcs` : `${quantity} шт.`}
                   </span>
                   <b>{money(total)}</b>
                 </p>
+                {tips > 0 && (
+                  <p className={styles.breakdownRow}>
+                    <span>
+                      {tx.tipsLine} · {lang === "en" ? `${tips} pcs` : `${tips} шт.`}
+                    </span>
+                    <b>{money(tipsTotal)}</b>
+                  </p>
+                )}
+                <p className={styles.breakdownRow}>
+                  <span>{tx.serviceFee}</span>
+                  <b>{money(serviceFee)}</b>
+                </p>
+                {(useCdek || payOnline) && (
                 <p className={styles.breakdownRow}>
                   <span>
-                    Доставка СДЭК
+                    {tx.delivery}
                     {useCdek && quote.state === "ready" && periodText(quote.quote) ? ` · ${periodText(quote.quote)}` : ""}
                   </span>
                   <b>
@@ -1029,8 +1066,9 @@ export function OrderPanel({
                             : "выберите город"}
                   </b>
                 </p>
+                )}
                 <p className={`${styles.breakdownRow} ${styles.breakdownTotal}`}>
-                  <span>{payOnline ? "К оплате" : "Итого"}</span>
+                  <span>{payOnline ? tx.toPay : tx.total}</span>
                   <b>{money(grandTotal)}</b>
                 </p>
                 {abroad && (
@@ -1039,7 +1077,6 @@ export function OrderPanel({
                   </p>
                 )}
               </div>
-            )}
 
             {serverError && (
               <p className={styles.serverError} role="alert">

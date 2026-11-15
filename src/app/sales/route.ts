@@ -88,6 +88,10 @@ interface Sale {
   delivery: number;
   total: number;
   abroad: boolean;
+  /** Докупленные наклейки JOS PM */
+  tips: number;
+  /** Сервисный сбор, ₽ */
+  fee: number;
   /** Продажа вне сайта, внесённая продавцом */
   offsite?: boolean;
 }
@@ -99,6 +103,9 @@ interface Sum {
   goods: number;
   delivery: number;
   total: number;
+  /** Наклейки JOS PM, шт., и сервисные сборы, ₽ (только сайт) */
+  tips: number;
+  fee: number;
   /** Из них вне сайта: штук и рублей */
   offQty: number;
   offTotal: number;
@@ -107,7 +114,7 @@ interface Sum {
 }
 
 function sum(list: Sale[]): Sum {
-  const s: Sum = { orders: 0, chalk: 0, kits: 0, goods: 0, delivery: 0, total: 0, offQty: 0, offTotal: 0, offCount: 0 };
+  const s: Sum = { orders: 0, chalk: 0, kits: 0, goods: 0, delivery: 0, total: 0, offQty: 0, offTotal: 0, offCount: 0, tips: 0, fee: 0 };
   for (const o of list) {
     s.orders += 1;
     if (o.kit) s.kits += o.qty;
@@ -115,6 +122,8 @@ function sum(list: Sale[]): Sum {
     s.goods += o.goods;
     s.delivery += o.delivery;
     s.total += o.total;
+    s.tips += o.tips;
+    s.fee += o.fee;
     if (o.offsite) {
       s.offCount += 1;
       s.offQty += o.qty;
@@ -136,6 +145,8 @@ const offsiteAsSales = (list: OffsiteSale[]): Sale[] =>
     delivery: 0,
     total: o.amount,
     abroad: false,
+    tips: 0,
+    fee: 0,
     offsite: true,
   }));
 
@@ -150,10 +161,12 @@ async function loadSales(): Promise<Sale[]> {
     product: string | null;
     goods: string | null;
     delivery: string | null;
+    tips: string | null;
+    fee: string | null;
     cc: string | null;
   }>(
     `select id, coalesce(paid_at, created_at) as at, name, total,
-            data->>'quantity' as qty, data->>'product' as product, data->>'itemsTotal' as goods, data->>'deliveryCost' as delivery,
+            data->>'quantity' as qty, data->>'product' as product, data->>'itemsTotal' as goods, data->>'deliveryCost' as delivery, data->>'tips' as tips, data->>'serviceFee' as fee,
             data->'delivery'->'cdek'->>'countryCode' as cc
        from orders
       where status in ('paid','shipped','delivered') and coalesce(data->'payment'->>'test', 'false') <> 'true'
@@ -162,6 +175,7 @@ async function loadSales(): Promise<Sale[]> {
   return r.rows.map((o) => {
     const total = Number(o.total) || 0;
     const delivery = Number(o.delivery) || 0;
+    const fee = Number(o.fee) || 0;
     return {
       id: o.id,
       at: new Date(o.at).getTime(),
@@ -169,7 +183,9 @@ async function loadSales(): Promise<Sale[]> {
       qty: Number(o.qty) || 1,
       kit: o.product === "kit",
       // у старых заказов, перенесённых из таблицы, стоимость товаров отдельно не записана
-      goods: Number(o.goods) || total - delivery,
+      goods: Number(o.goods) || total - delivery - fee,
+      tips: Number(o.tips) || 0,
+      fee,
       delivery,
       total,
       abroad: Boolean(o.cc && o.cc !== "RU"),
@@ -223,7 +239,9 @@ function tiles(s: Sum): string {
 ${col("Сайт", "", `${n(qty - s.offQty)} шт.`, [
     ["заказов", n(s.orders - s.offCount)],
     ["за товар", rub(s.goods - s.offTotal)],
+    ["в т. ч. наклейки JOS PM", `${n(s.tips)} шт.`],
     ["доставка (оплатили покупатели)", rub(s.delivery)],
+    ["сервисный сбор", rub(s.fee)],
     ["получено", rub(s.total - s.offTotal)],
   ])}
 ${col("Вне сайта", "", `${n(s.offQty)} шт.`, [
@@ -236,6 +254,7 @@ ${col("Всего", "main", `${n(qty)} шт.`, [
     ["мел / наборы", `${n(s.chalk)} / ${n(s.kits)}`],
     ["за товар", rub(s.goods)],
     ["доставка", rub(s.delivery)],
+    ["сервисный сбор", rub(s.fee)],
     ["получено", rub(s.total)],
   ])}
 </div>`;
@@ -369,7 +388,7 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
     .filter((o) => !o.offsite)
     .map(
       (o) =>
-        `<tr><td>${esc(o.id)} <span class="dim">· ${esc(when(o.at))}${o.abroad ? " · из-за рубежа" : ""}</span><br><span class="dim">${esc(o.name)}</span></td><td>${o.kit ? "набор" : "мел"} × ${o.qty}</td><td>${esc(rub(o.goods))}</td><td>${esc(rub(o.delivery))}</td><td>${esc(rub(o.total))}</td></tr>`,
+        `<tr><td>${esc(o.id)} <span class="dim">· ${esc(when(o.at))}${o.abroad ? " · из-за рубежа" : ""}</span><br><span class="dim">${esc(o.name)}</span></td><td>${o.kit ? "набор" : "мел"} × ${o.qty}${o.tips ? `<br><span class="dim">+ JOS PM × ${o.tips}</span>` : ""}</td><td>${esc(rub(o.goods))}</td><td>${esc(rub(o.delivery))}</td><td>${esc(rub(o.total))}</td></tr>`,
     );
   const offRows = chosen
     .filter((o) => o.offsite)
@@ -400,7 +419,7 @@ ${tiles(total)}
 <tbody>${periodRows.join("\n")}</tbody>
 <tfoot><tr><td>За всё время</td>${cells(sum(sales))}</tr></tfoot>
 </table></div>
-<p class="formula">«За товар» — без доставки. Доставку оплачивают только покупатели сайта, она показана в итогах периода выше.</p>
+<p class="formula">«За товар» — без доставки и сервисного сбора (у сайта — вместе с наклейками JOS PM). Доставку и сбор платят только покупатели сайта, они показаны в итогах периода выше.</p>
 <div class="pair">
 <div><h2>Сайт · заказы за ${period} · ${siteRows.length}</h2>
 ${

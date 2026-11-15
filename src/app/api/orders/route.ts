@@ -10,7 +10,7 @@
  */
 import { after } from "next/server";
 import { features } from "@/config/features";
-import { isWholesale, priceFor, productPrice } from "@/config/products";
+import { EXTRA_TIP, isWholesale, priceFor, productPrice, SERVICE_FEE } from "@/config/products";
 import { PRODUCT } from "@/config/site";
 import { calculateDelivery, findPickupPoint } from "@/lib/delivery/cdek";
 import { customerDeliveryPrice } from "@/lib/delivery/price";
@@ -45,7 +45,7 @@ type DeliveryResult =
   | { ok: "unavailable"; delivery: OrderDelivery };
 
 /** Доставка СДЭК до ПВЗ: проверяем пункт и считаем цену на сервере (цене из браузера не доверяем). */
-async function resolveCdekDelivery(input: OrderInput, unitPrice: number): Promise<DeliveryResult> {
+async function resolveCdekDelivery(input: OrderInput, unitPrice: number, tipPrice: number): Promise<DeliveryResult> {
   try {
     const [point, quote] = await Promise.all([
       findPickupPoint(input.cityCode, input.pickupPoint),
@@ -54,7 +54,8 @@ async function resolveCdekDelivery(input: OrderInput, unitPrice: number): Promis
         toCityCode: input.cityCode,
         quantity: input.quantity,
         product: input.product,
-        declaredValue: unitPrice * input.quantity,
+        tips: input.tips,
+        declaredValue: unitPrice * input.quantity + tipPrice * input.tips,
       }),
     ]);
     if (!point) return { ok: false, error: "Этот пункт выдачи сейчас недоступен — выберите другой", field: "pickupPoint" };
@@ -154,6 +155,7 @@ export async function POST(request: Request) {
           resolveCdekDelivery(
             input,
             a ? usdToRub(abroadUnitUsd(a, input.product, input.quantity), a.rate) : productPrice(input.product, input.quantity),
+            a ? usdToRub(EXTRA_TIP.priceUsd, a.rate) : EXTRA_TIP.price,
           ),
         )
       : Promise.resolve(null),
@@ -176,12 +178,16 @@ export async function POST(request: Request) {
   let deliveryCost = 0;
   let deliveryKnown = true;
   let unitPrice: number | undefined;
+  let tipPrice: number | undefined;
+  let serviceFee: number | undefined;
   if (usd) {
     // Заказ с английской версии: цена показывалась в долларах — фиксируем её в таблице
     const unitUsd = priceFor(input.product, input.quantity, usd);
     delivery = {
       provider: "international",
-      label: `Международная доставка — уточняется · англ. версия сайта: ${kit ? "набор " : wholesale ? "опт " : ""}$${unitUsd}/шт., итого $${unitUsd * input.quantity}${
+      label: `Международная доставка — уточняется · англ. версия сайта: ${kit ? "набор " : wholesale ? "опт " : ""}$${unitUsd}/шт.${
+        input.tips ? `, наклейки JOS PM ${input.tips} × $${EXTRA_TIP.priceUsd}` : ""
+      }, сбор $${SERVICE_FEE.priceUsd.toFixed(2)}, итого $${(unitUsd * input.quantity + EXTRA_TIP.priceUsd * input.tips + SERVICE_FEE.priceUsd).toFixed(2)}${
         usd.rate ? ` (курс ${usd.rate.toFixed(2)} ₽/$)` : ""
       }`,
     };
@@ -202,13 +208,23 @@ export async function POST(request: Request) {
     const deliveryUsd = deliveryUsdFor(deliveryCost, abroad);
     const unitUsd = abroadUnitUsd(abroad, input.product, input.quantity);
     unitPrice = usdToRub(unitUsd, abroad.rate);
+    tipPrice = usdToRub(EXTRA_TIP.priceUsd, abroad.rate);
+    serviceFee = usdToRub(SERVICE_FEE.priceUsd, abroad.rate);
     deliveryCost = usdToRub(deliveryUsd, abroad.rate);
     delivery = {
       ...delivery,
       cdek: {
         ...delivery.cdek,
         price: deliveryCost,
-        abroad: { unitUsd, deliveryUsd, rate: abroad.rate, ...(kit ? { kit: true } : {}), ...(wholesale ? { wholesale: true } : {}) },
+        abroad: {
+          unitUsd,
+          deliveryUsd,
+          rate: abroad.rate,
+          ...(kit ? { kit: true } : {}),
+          ...(wholesale ? { wholesale: true } : {}),
+          ...(input.tips ? { tipUsd: EXTRA_TIP.priceUsd } : {}),
+          feeUsd: SERVICE_FEE.priceUsd,
+        },
       },
     };
     delivery.label = deliveryLabel(delivery);
@@ -231,6 +247,8 @@ export async function POST(request: Request) {
       delivery,
       deliveryCost,
       unitPrice,
+      tipPrice,
+      serviceFee,
       awaitingPayment: payOnline,
     });
 
@@ -316,6 +334,7 @@ export async function POST(request: Request) {
             total: order.total,
             delivery: "",
             ...(order.product === "kit" ? { kit: order.tip } : {}),
+            ...(order.tips ? { tips: order.tips } : {}),
           }),
         ),
       );

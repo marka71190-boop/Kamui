@@ -90,6 +90,7 @@ export function CdekPicker({
   value,
   quantity,
   product = "chalk",
+  tips = 0,
   freeDelivery,
   cityError,
   pointError,
@@ -102,6 +103,8 @@ export function CdekPicker({
   quantity: number;
   /** Мел или подарочный набор — у набора другая посылка */
   product?: "chalk" | "kit";
+  /** Докупленные наклейки JOS PM — немного меняют вес и страховку */
+  tips?: number;
   freeDelivery: boolean;
   cityError?: string;
   pointError?: string;
@@ -277,7 +280,7 @@ export function CdekPicker({
       getJson<{ quote: CdekQuoteView }>("/api/delivery/cdek/calculate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cityCode: value.cityCode, quantity, country, product }),
+        body: JSON.stringify({ cityCode: value.cityCode, quantity, country, product, tips }),
         signal: ctrl.signal,
       })
         .then((d) => {
@@ -295,7 +298,7 @@ export function CdekPicker({
       window.clearTimeout(t);
       ctrl.abort();
     };
-  }, [value.cityCode, quantity, country, product]);
+  }, [value.cityCode, quantity, country, product, tips]);
 
   const showSearch = (points?.length ?? 0) > 6;
   const visible = filtered.slice(0, MAX_VISIBLE);

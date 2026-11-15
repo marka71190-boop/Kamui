@@ -13,7 +13,7 @@
  */
 import { cdekCountry, DEFAULT_CDEK_COUNTRY } from "@/config/cdek-countries";
 import { PRODUCT, SELLER, SITE } from "@/config/site";
-import { KIT, productName, type ProductId } from "@/config/products";
+import { EXTRA_TIP, KIT, productName, type ProductId } from "@/config/products";
 
 const BASE = () =>
   (
@@ -228,9 +228,15 @@ const kitBox = () => ({
   height: Math.max(1, Math.ceil(KIT_PACKAGE.height)),
 });
 
-/** Места посылки: мел — одно место; наборы — каждый набор отдельным местом (коробка) */
-export const packagesFor = (quantity: number, product: ProductId = "chalk") =>
-  product === "kit" ? Array.from({ length: Math.max(1, quantity) }, kitBox) : [packageFor(quantity)];
+/**
+ * Места посылки: мел — одно место; наборы — каждый набор отдельным местом (коробка).
+ * Докупленные наклейки JOS PM (лёгкие, в zip-пакете) кладутся в первое место.
+ */
+export const packagesFor = (quantity: number, product: ProductId = "chalk", tips = 0) => {
+  const list = product === "kit" ? Array.from({ length: Math.max(1, quantity) }, kitBox) : [packageFor(quantity)];
+  if (tips > 0) list[0] = { ...list[0], weight: list[0].weight + Math.round(EXTRA_TIP.weight * tips) };
+  return list;
+};
 
 export interface CdekQuote {
   /** Стоимость доставки по тарифу вместе со страховкой объявленной стоимости, ₽ (округлена вверх до рубля) */
@@ -266,6 +272,7 @@ export async function calculateDelivery({
   toCityCode,
   quantity,
   product = "chalk",
+  tips = 0,
   tariffCode = DEFAULT_TARIFF(),
   declaredValue = 0,
 }: {
@@ -273,6 +280,8 @@ export async function calculateDelivery({
   quantity: number;
   /** Мел или подарочный набор — от этого зависят размеры и вес посылки */
   product?: ProductId;
+  /** Докупленные наклейки JOS PM — добавляют вес */
+  tips?: number;
   tariffCode?: number;
   declaredValue?: number;
 }): Promise<CdekQuote> {
@@ -286,7 +295,7 @@ export async function calculateDelivery({
         tariff_code: tariffCode,
         from_location: { code: fromCode },
         to_location: { code: toCityCode },
-        packages: packagesFor(quantity, product),
+        packages: packagesFor(quantity, product, tips),
         ...(withInsurance ? { services: [{ code: "INSURANCE", parameter: String(declared) }] } : {}),
       }),
     });
@@ -336,6 +345,8 @@ export interface ShipmentInput {
   countryCode?: string;
   /** Подарочный набор: выбранная наклейка JOS (у мела — не задано) */
   kitTip?: string;
+  /** Докупленные наклейки JOS PM: сколько и цена 1 шт., ₽ */
+  extraTips?: { qty: number; price: number };
 }
 
 /** Поля накладной, которые СДЭК требует для заказов за пределы России (страны ЕАЭС — без таможни). */
@@ -443,16 +454,30 @@ export async function createShipment(input: ShipmentInput): Promise<string> {
         phones: [{ number: phoneForCdek(input.recipient.phone) }],
       },
       // Мел — одно место со всеми штуками; наборы — каждый в своей коробке, отдельным местом
-      packages: packagesFor(input.quantity, kit ? "kit" : "chalk").map((pkg, i) => ({
+      packages: packagesFor(input.quantity, kit ? "kit" : "chalk", input.extraTips?.qty ?? 0).map((pkg, i) => ({
         number: String(i + 1),
         ...pkg,
         items: [
+          // Докупленные наклейки — отдельной строкой в первом месте
+          ...(i === 0 && input.extraTips && input.extraTips.qty > 0
+            ? [
+                {
+                  name: EXTRA_TIP.name,
+                  ware_key: EXTRA_TIP.sku,
+                  payment: { value: 0 },
+                  cost: input.extraTips.price,
+                  weight: EXTRA_TIP.weight,
+                  amount: input.extraTips.qty,
+                  ...(intl ? { ...ITEM_INTL, name_i18n: EXTRA_TIP.nameIntl, brand: "JOS" } : {}),
+                },
+              ]
+            : []),
           {
             name: kit ? productName("kit", input.kitTip) : PRODUCT.name,
             ware_key: kit ? `${KIT.sku}-${input.kitTip}` : PRODUCT.sku,
             payment: { value: 0 }, // товар оплачен онлайн
             cost: input.unitPrice,
-            weight: kit ? pkg.weight : Math.max(1, Math.round(PACKAGE.itemWeight)),
+            weight: kit ? Math.max(1, pkg.weight - (i === 0 ? Math.round(EXTRA_TIP.weight * (input.extraTips?.qty ?? 0)) : 0)) : Math.max(1, Math.round(PACKAGE.itemWeight)),
             amount: kit ? 1 : input.quantity,
             ...(intl ? { ...ITEM_INTL, ...(kit ? { name_i18n: KIT.nameIntl } : {}) } : {}),
           },

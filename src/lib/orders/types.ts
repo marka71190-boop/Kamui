@@ -62,7 +62,7 @@ export interface OrderDelivery {
     periodMin?: number;
     periodMax?: number;
     /** Заказ из-за рубежа: цены в долларах (мел, доставка) и курс ЦБ, по которому считались рубли */
-    abroad?: { unitUsd: number; deliveryUsd: number; rate: number; kit?: boolean; wholesale?: boolean };
+    abroad?: { unitUsd: number; deliveryUsd: number; rate: number; kit?: boolean; wholesale?: boolean; tipUsd?: number; feeUsd?: number };
     /** UUID заказа в СДЭК */
     orderUuid?: string;
     /** Номер отправления (трек-номер) */
@@ -99,11 +99,16 @@ export interface Order {
   /** Покупатель согласился получать письма о заказе (подтверждение оплаты, трек-номер) */
   newsletter?: true;
   unitPrice: number;
-  /** Стоимость товаров, ₽ */
+  /** Докупленные наклейки JOS PM (выбор Иосифа): сколько и почём, ₽ за шт. */
+  tips?: number;
+  tipPrice?: number;
+  /** Стоимость товаров (мел или наборы + наклейки), ₽ */
   itemsTotal: number;
+  /** Сервисный сбор, ₽ (у старых заказов не заполнен) */
+  serviceFee?: number;
   /** Доставка, которую платит покупатель, ₽ (0 — бесплатно или уточняется) */
   deliveryCost: number;
-  /** К оплате: товары + доставка, ₽ */
+  /** К оплате: товары + доставка + сервисный сбор, ₽ */
   total: number;
   currency: "RUB";
   comment: string;

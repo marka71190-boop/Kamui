@@ -63,6 +63,7 @@ async function shipOrderNow(m: Partial<PaymentShipmentMeta>, opts: ShipOptions):
         recipient: { name: m.name ?? "", phone: m.phone ?? "", email: m.email, tin: m.tin },
         countryCode: m.cc || undefined,
         kitTip: m.kit || undefined,
+        ...(Number(m.tips) > 0 ? { extraTips: { qty: Number(m.tips), price: Number(m.tipPrice) || 0 } } : {}),
       });
       shipment = { uuid, trackingNumber: null };
     }
@@ -104,6 +105,7 @@ async function shipOrderNow(m: Partial<PaymentShipmentMeta>, opts: ShipOptions):
           total: 0,
           delivery: base,
           ...(m.kit ? { kit: m.kit } : {}),
+          ...(Number(m.tips) > 0 ? { tips: Number(m.tips) } : {}),
         },
         result.trackingNumber,
       ),

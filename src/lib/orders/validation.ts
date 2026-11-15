@@ -4,7 +4,7 @@
 import type { Lang } from "@/i18n/lang";
 import { toLatin } from "@/lib/translit";
 import { CDEK_COUNTRIES, cdekCountry, DEFAULT_CDEK_COUNTRY, isCdekCountry, type CdekCountryCode } from "@/config/cdek-countries";
-import { isKitTip, type ProductId } from "@/config/products";
+import { clampTips, isKitTip, type ProductId } from "@/config/products";
 import type { OrderRegion } from "./types";
 import { emailSyntaxOk } from "./email-check";
 
@@ -31,6 +31,8 @@ export interface OrderInput {
   phone: string;
   email: string;
   quantity: number;
+  /** Докупленные наклейки JOS PM (выбор Иосифа), 0–10 */
+  tips: number;
   city: string;
   comment: string;
   /** Для заказов вне России */
@@ -49,7 +51,7 @@ export interface OrderInput {
   trap: string;
 }
 
-export type OrderField = Exclude<keyof OrderInput, "lang" | "region" | "trap" | "cityCode" | "payTest" | "product">;
+export type OrderField = Exclude<keyof OrderInput, "lang" | "region" | "trap" | "cityCode" | "payTest" | "product" | "tips">;
 export type FieldErrors = Partial<Record<OrderField, string>>;
 
 export const LIMITS = {
@@ -94,6 +96,7 @@ export function normalizeOrderInput(raw: unknown): OrderInput {
     phone: clean(r.phone, LIMITS.phone),
     email: clean(r.email, LIMITS.email).toLowerCase(),
     quantity: Number.isFinite(q) ? Math.trunc(q) : 0,
+    tips: clampTips(r.tips),
     city: clean(r.city, LIMITS.city),
     comment: clean(r.comment, LIMITS.comment),
     country: clean(r.country, LIMITS.country),

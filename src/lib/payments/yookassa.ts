@@ -11,7 +11,7 @@
  *   5. вебхук перепроверяет платёж через API (getPayment), меняет статус заказа
  *      и, если подключён СДЭК, создаёт отправление по данным из metadata платежа.
  */
-import { KIT, productName } from "@/config/products";
+import { EXTRA_TIP, KIT, productName, SERVICE_FEE } from "@/config/products";
 import { PRODUCT, SITE } from "@/config/site";
 import { ORDER_ID_RE } from "@/lib/orders/id";
 import type { Order, OrderPayment } from "@/lib/orders/types";
@@ -81,6 +81,9 @@ export interface PaymentShipmentMeta {
   delivery?: string;
   /** Подарочный набор: наклейка JOS (у мела — нет) */
   kit?: string;
+  /** Докупленные наклейки JOS PM: сколько и почём (₽ за шт.) */
+  tips?: string;
+  tipPrice?: string;
   qty: string;
   price: string;
   name: string;
@@ -101,6 +104,10 @@ export function paymentMetadataFor(order: Order): PaymentShipmentMeta {
   };
   if (order.customer.taxId) meta.tin = order.customer.taxId;
   if (order.product === "kit") meta.kit = order.tip || "-";
+  if (order.tips) {
+    meta.tips = String(order.tips);
+    meta.tipPrice = String(order.tipPrice ?? EXTRA_TIP.price);
+  }
   if (order.delivery.provider === "cdek" && c?.pickupPointCode) {
     meta.pvz = c.pickupPointCode;
     if (c.cityCode) meta.city = String(c.cityCode);
@@ -179,6 +186,26 @@ function receiptFor(order: Order) {
       payment_subject: "commodity",
     },
   ];
+  if (order.tips) {
+    items.push({
+      description: EXTRA_TIP.name.slice(0, 128),
+      quantity: order.tips,
+      amount: money(order.tipPrice ?? EXTRA_TIP.price),
+      vat_code: vat,
+      payment_mode: "full_payment",
+      payment_subject: "commodity",
+    });
+  }
+  if (order.serviceFee) {
+    items.push({
+      description: SERVICE_FEE.name,
+      quantity: 1,
+      amount: money(order.serviceFee),
+      vat_code: vat,
+      payment_mode: "full_payment",
+      payment_subject: "service",
+    });
+  }
   if (order.deliveryCost > 0) {
     items.push({
       description: "Доставка СДЭК до пункта выдачи",

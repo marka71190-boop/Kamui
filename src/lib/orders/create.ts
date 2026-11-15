@@ -1,5 +1,5 @@
 import { cdekCountry } from "@/config/cdek-countries";
-import { isWholesale, kitOrderNote, productPrice, wholesaleOrderNote } from "@/config/products";
+import { EXTRA_TIP, isWholesale, kitOrderNote, productPrice, SERVICE_FEE, tipsOrderNote, wholesaleOrderNote } from "@/config/products";
 import { SHOP } from "@/config/site";
 import { formatPrice } from "@/lib/format";
 import { generateOrderId } from "./id";
@@ -54,6 +54,10 @@ export interface CreateOrderOptions {
   deliveryCost?: number;
   /** Цена 1 шт. (мела или набора), ₽, если отличается от обычной (заказ из-за рубежа — $ по курсу ЦБ) */
   unitPrice?: number;
+  /** Цена 1 наклейки JOS PM, ₽ (заказ из-за рубежа — $ по курсу ЦБ) */
+  tipPrice?: number;
+  /** Сервисный сбор, ₽ (заказ из-за рубежа — $ по курсу ЦБ) */
+  serviceFee?: number;
   /** Сразу ждём онлайн-оплату */
   awaitingPayment?: boolean;
 }
@@ -64,14 +68,18 @@ export function buildOrder(input: OrderInput, opts: CreateOrderOptions = {}): Or
   const isRu = input.region === "ru";
   const kit = input.product === "kit";
   const unitPrice = opts.unitPrice && opts.unitPrice > 0 ? opts.unitPrice : productPrice(input.product, input.quantity);
+  const tips = input.tips > 0 ? input.tips : 0;
+  const tipPrice = opts.tipPrice && opts.tipPrice > 0 ? opts.tipPrice : EXTRA_TIP.price;
+  const serviceFee = Math.max(0, Math.round(opts.serviceFee ?? SERVICE_FEE.price));
   // Первые строки комментария — то, что менеджеру важно увидеть сразу: набор с наклейкой, оптовая цена, ИИН / ПИН получателя
   const notes = [
     kit ? kitOrderNote(input.quantity, input.tip) : "",
     isWholesale(input.product, input.quantity) ? wholesaleOrderNote(formatPrice(unitPrice)) : "",
+    tips ? tipsOrderNote(tips, formatPrice(tipPrice)) : "",
     input.taxId ? `${input.deliveryCountry === "KG" ? "ПИН" : "ИИН"} получателя: ${input.taxId}` : "",
     input.comment,
   ].filter(Boolean);
-  const itemsTotal = unitPrice * input.quantity;
+  const itemsTotal = unitPrice * input.quantity + tipPrice * tips;
   const deliveryCost = Math.max(0, Math.ceil(opts.deliveryCost ?? 0));
   const order: Order = {
     id: generateOrderId(),
@@ -92,9 +100,11 @@ export function buildOrder(input: OrderInput, opts: CreateOrderOptions = {}): Or
     // Письма о заказе входят в единое согласие формы (чек, трек-номер)
     ...(input.consent ? { newsletter: true as const } : {}),
     unitPrice,
+    ...(tips ? { tips, tipPrice } : {}),
     itemsTotal,
+    serviceFee,
     deliveryCost,
-    total: itemsTotal + deliveryCost,
+    total: itemsTotal + deliveryCost + serviceFee,
     currency: "RUB",
     comment: notes.join("\n"),
     delivery:

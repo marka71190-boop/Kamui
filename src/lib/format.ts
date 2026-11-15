@@ -14,7 +14,11 @@ export type Currency = "RUB" | "USD";
 
 /** 3500 RUB → «3 500 ₽», 43 USD → «$43» */
 export function formatMoney(n: number, currency: Currency): string {
-  return currency === "USD" ? `$${formatNumber(n, "en")}` : formatPrice(n);
+  if (currency !== "USD") return formatPrice(n);
+  if (Number.isInteger(n)) return `$${formatNumber(n, "en")}`;
+  // центы — всегда двумя цифрами: $0.50, $48.50
+  const cents = Math.round(Math.abs(n) * 100);
+  return `${n < 0 ? "−" : ""}$${formatNumber(Math.floor(cents / 100), "en")}.${String(cents % 100).padStart(2, "0")}`;
 }
 
 /** 1 → «штука», 2 → «штуки», 5 → «штук» */

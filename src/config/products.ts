@@ -69,3 +69,46 @@ export const kitOrderNote = (quantity: number, tip: string): string =>
 
 /** Строка для таблицы заказов: мел по оптовой цене */
 export const wholesaleOrderNote = (unit: string): string => `Оптовая цена (от ${WHOLESALE.minQty} шт.): ${unit} за шт.`;
+
+/**
+ * Дополнительная наклейка JOS PM — «выбор Иосифа Абрамова»: докупается к мелу или набору, от 0 до maxPerOrder шт.
+ * Остаток тиража мела не уменьшает. Цена для заказов из-за рубежа — priceUsd (с комиссией Robokassa, как у мела).
+ */
+export const EXTRA_TIP = {
+  /** В чеке и накладной */
+  name: "Наклейка JOS PM — выбор Иосифа Абрамова",
+  /** Коротко — в таблице, письмах и на странице заказа */
+  shortName: "Наклейка JOS PM",
+  nameIntl: "JOS cue tip PM (Iosif Abramov's choice)",
+  sku: "JOS-PM",
+  /** Цена 1 шт., ₽ */
+  price: 1300,
+  /** Цена 1 шт. для заказов из-за рубежа, $ */
+  priceUsd: 18,
+  maxPerOrder: 10,
+  /** Вес одной наклейки в zip-пакете, г — для расчёта доставки */
+  weight: 5,
+} as const;
+
+/** Наклеек в заказе: целое число от 0 до EXTRA_TIP.maxPerOrder */
+export const clampTips = (v: unknown): number => {
+  const n = typeof v === "number" ? v : Number.parseInt(String(v ?? ""), 10);
+  return Number.isFinite(n) ? Math.min(EXTRA_TIP.maxPerOrder, Math.max(0, Math.trunc(n))) : 0;
+};
+
+/** Строка для таблицы заказов (комментарий): докупленные наклейки */
+export const tipsOrderNote = (tips: number, price: string): string =>
+  `+ ${EXTRA_TIP.shortName} (выбор Иосифа) × ${tips} · ${price} за шт.`;
+
+/** Сколько докупленных наклеек в заказе — из строки комментария (для заказов из таблицы) */
+export const tipsFromNote = (comment: string): number => clampTips(/JOS PM \(выбор Иосифа\) × (\d+)/.exec(comment ?? "")?.[1]);
+
+/**
+ * Сервисный сбор — с каждого заказа, отдельной строкой в расчёте и в чеке.
+ * Для заказов из-за рубежа — priceUsd (оплата в рублях по курсу ЦБ).
+ */
+export const SERVICE_FEE = {
+  name: "Сервисный сбор",
+  price: 29,
+  priceUsd: 0.5,
+} as const;

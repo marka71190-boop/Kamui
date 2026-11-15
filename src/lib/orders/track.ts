@@ -3,6 +3,7 @@
  * Отдаём только то, что нужно для отслеживания, — без ФИО и контактов.
  */
 import { features } from "@/config/features";
+import { tipsFromNote } from "@/config/products";
 import { sql } from "@/lib/db/pg";
 import { dbEnabled, ensureSchema } from "@/lib/db/schema";
 import { AT_PICKUP_CODES } from "@/lib/delivery/cdek";
@@ -23,6 +24,8 @@ export interface TrackView {
   manual: boolean;
   quantity: number;
   kit: boolean;
+  /** Докупленные наклейки JOS PM */
+  tips: number;
   total: number;
   delivery: string;
   tracking?: string;
@@ -84,6 +87,7 @@ async function fromDb(id: string, contact: string): Promise<TrackView | null> {
     canceled: r.status === "cancelled" || r.status === "payment_canceled",
     manual: d.delivery?.provider !== "cdek",
     quantity: Number(d.quantity) || 1,
+    tips: Number(d.tips) || 0,
     kit: d.product === "kit",
     total: Math.round(Number(r.total) || 0),
     delivery: cleanLabel(d.delivery?.label ?? ""),
@@ -104,6 +108,7 @@ async function fromSheet(id: string, contact: string): Promise<TrackView | null>
     canceled: /отмен/i.test(o.status),
     manual: !/^СДЭК/.test(o.delivery),
     quantity: o.quantity || 1,
+    tips: tipsFromNote(o.comment),
     kit: /^Подарочный набор/.test(o.comment),
     total: Math.round(o.total || 0),
     delivery: cleanLabel(o.delivery),

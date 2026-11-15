@@ -16,6 +16,8 @@ export interface MailOrder {
   delivery: string;
   /** Подарочный набор: наклейка JOS */
   kit?: string;
+  /** Докупленные наклейки JOS PM (выбор Иосифа) */
+  tips?: number;
 }
 
 export interface Mail {
@@ -43,9 +45,10 @@ export function pickupFrom(delivery: string): string {
 
 export function itemsLine(o: MailOrder): string {
   const qty = Math.max(1, o.quantity || 1);
-  return o.kit
+  const main = o.kit
     ? `Подарочный набор Kamui × Iosif Abramov (наклейка JOS ${o.kit}) — ${qty} шт.`
     : `Мел Kamui × Iosif Abramov 0.98 β — ${qty} шт.`;
+  return o.tips ? `${main}; наклейка JOS PM (выбор Иосифа) — ${o.tips} шт.` : main;
 }
 
 const greeting = (o: MailOrder) => (o.name ? `Здравствуйте, ${o.name}!` : "Здравствуйте!");

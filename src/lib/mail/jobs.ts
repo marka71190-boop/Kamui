@@ -30,6 +30,7 @@ function envNum(v: string | undefined, def: number): number {
 
 /** Сколько дней посылка бесплатно хранится в пункте выдачи (если СДЭК сам не сообщает дату) */
 import { checkLowStock } from "@/lib/warehouse";
+import { tipsFromNote } from "@/config/products";
 
 export const storageDays = () => envNum(process.env.CDEK_STORAGE_DAYS, 7);
 /** За сколько дней до конца хранения напоминать */
@@ -65,6 +66,7 @@ export function mailOrderFrom(o: SheetPaidOrder): MailOrder {
     total: o.total,
     delivery: o.delivery.replace(/ · трек \d+.*$/, ""),
     ...(kit ? { kit } : {}),
+    ...(tipsFromNote(o.comment) ? { tips: tipsFromNote(o.comment) } : {}),
   };
 }
 

@@ -5,7 +5,7 @@ import { cdekCountry, deliveryAreaText } from "@/config/cdek-countries";
 import { features } from "@/config/features";
 import { PRODUCT, SHOP, SITE, sellerContactsText } from "@/config/site";
 import { kitPriceUsd, unitPriceUsd, wholesalePriceUsd } from "@/lib/currency";
-import { KIT, WHOLESALE } from "@/config/products";
+import { EXTRA_TIP, KIT, SERVICE_FEE, WHOLESALE } from "@/config/products";
 import { formatPrice } from "@/lib/format";
 import { renderPerRequestOnOwnServer } from "@/lib/render-mode";
 
@@ -113,8 +113,9 @@ export default async function DeliveryPage() {
       )}
       <p>
         Цена — {formatPrice(PRODUCT.price)} за 1 шт. мела (от {WHOLESALE.minQty} шт. в заказе — {formatPrice(WHOLESALE.price)} за шт.),{" "}
-        {formatPrice(KIT.price)} за подарочный набор. Итоговая сумма к оплате{free ? "" : " с учётом доставки"}{" "}
-        отображается перед оплатой. Кассовый чек в соответствии с 54-ФЗ направляется на электронную почту, указанную в
+        {formatPrice(KIT.price)} за подарочный набор. К заказу можно добавить наклейку JOS PM — «выбор Иосифа» —{" "}
+        {formatPrice(EXTRA_TIP.price)} за шт. С каждого заказа взимается сервисный сбор {formatPrice(SERVICE_FEE.price)} — он
+        показан отдельной строкой. Итоговая сумма к оплате{free ? "" : " с учётом доставки"} отображается перед оплатой. Кассовый чек в соответствии с 54-ФЗ направляется на электронную почту, указанную в
         заказе.
       </p>
 
