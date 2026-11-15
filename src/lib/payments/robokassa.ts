@@ -18,10 +18,10 @@
  *   ROBOKASSA_RECEIPT=true — передавать состав чека (мел + доставка); по умолчанию чек Robokassa формирует сама
  */
 import crypto from "node:crypto";
-import { EXTRA_TIP, productName, SERVICE_FEE } from "@/config/products";
+import { EXTRA_TIP, extraTipName, type KitTip, productName, SERVICE_FEE } from "@/config/products";
 import { PRODUCT } from "@/config/site";
 import type { Order } from "@/lib/orders/types";
-import { paymentMetadataFor, type PaymentShipmentMeta } from "./yookassa";
+import { orderTipKinds, paymentMetadataFor, type PaymentShipmentMeta } from "./yookassa";
 
 const PAY_URL = "https://auth.robokassa.ru/Merchant/Index.aspx";
 const STATE_URL = "https://auth.robokassa.ru/Merchant/WebService/Service.asmx/OpStateExt";
@@ -66,7 +66,7 @@ function shpTail(shp: Record<string, string>): string {
 
 /* ───────────────────────── Данные для накладной ───────────────────────── */
 
-type Packed = { o: string; p?: string; c?: string; t?: string; k?: string; d?: string; i?: string; x?: string; a?: string; b?: string; q: string; u: string; n: string; f: string; e: string };
+type Packed = { o: string; p?: string; c?: string; t?: string; k?: string; d?: string; i?: string; x?: string; a?: string; b?: string; y?: string; q: string; u: string; n: string; f: string; e: string };
 
 /** Данные для накладной СДЭК → короткая строка без спецсимволов (base64url от JSON) */
 export function packShipmentMeta(m: PaymentShipmentMeta): string {
@@ -80,6 +80,7 @@ export function packShipmentMeta(m: PaymentShipmentMeta): string {
   if (m.tips) {
     p.a = m.tips;
     p.b = m.tipPrice;
+    if (m.tipKinds) p.y = m.tipKinds;
   }
   // Текст колонки «Доставка» — сокращаем, чтобы ссылка на оплату не была слишком длинной
   if (m.delivery) p.d = m.delivery.slice(0, 160);
@@ -100,6 +101,7 @@ export function unpackShipmentMeta(s: string): PaymentShipmentMeta | null {
       kit: p.x,
       tips: p.a,
       tipPrice: p.b,
+      tipKinds: p.y,
       delivery: p.d,
       qty: String(p.q ?? ""),
       price: String(p.u ?? ""),
@@ -141,11 +143,12 @@ function receiptFor(order: Order): string {
       tax,
     },
   ];
-  if (order.tips) {
+  // Наклейки JOS — строкой на каждый вид
+  for (const [t, n] of Object.entries(orderTipKinds(order)) as [KitTip, number][]) {
     items.push({
-      name: EXTRA_TIP.name.slice(0, 128),
-      quantity: order.tips,
-      sum: Number(money((order.tipPrice ?? EXTRA_TIP.price) * order.tips)),
+      name: extraTipName(t).slice(0, 128),
+      quantity: n,
+      sum: Number(money((order.tipPrice ?? EXTRA_TIP.price) * n)),
       payment_method: "full_payment",
       payment_object: "commodity",
       tax,
@@ -203,7 +206,7 @@ export function createRobokassaPayment(order: Order, cfg: RobokassaConfig | null
     MerchantLogin: cfg.login,
     OutSum: outSum,
     InvId: String(invoiceId),
-    Description: `Заказ ${order.id}: ${order.product === "kit" ? "подарочный набор" : "мел"} Kamui x Abramov, ${order.quantity} шт.${order.tips ? `, наклейки JOS PM ${order.tips} шт.` : ""}${order.deliveryCost > 0 ? " и доставка СДЭК" : ""}`.slice(0, 100),
+    Description: `Заказ ${order.id}: ${order.product === "kit" ? "подарочный набор" : "мел"} Kamui x Abramov, ${order.quantity} шт.${order.tips ? `, наклейки JOS ${order.tips} шт.` : ""}${order.deliveryCost > 0 ? " и доставка СДЭК" : ""}`.slice(0, 100),
     SignatureValue: signature,
     Culture: "ru",
     Encoding: "utf-8",

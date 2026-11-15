@@ -10,7 +10,7 @@
  */
 import { after } from "next/server";
 import { features } from "@/config/features";
-import { EXTRA_TIP, isWholesale, priceFor, productPrice, SERVICE_FEE } from "@/config/products";
+import { EXTRA_TIP, isWholesale, priceFor, productPrice, SERVICE_FEE, tipsText } from "@/config/products";
 import { PRODUCT } from "@/config/site";
 import { calculateDelivery, findPickupPoint } from "@/lib/delivery/cdek";
 import { customerDeliveryPrice } from "@/lib/delivery/price";
@@ -186,7 +186,7 @@ export async function POST(request: Request) {
     delivery = {
       provider: "international",
       label: `Международная доставка — уточняется · англ. версия сайта: ${kit ? "набор " : wholesale ? "опт " : ""}$${unitUsd}/шт.${
-        input.tips ? `, наклейки JOS PM ${input.tips} × $${EXTRA_TIP.priceUsd}` : ""
+        input.tips ? `, наклейки JOS ${tipsText(input.tipKinds)} по $${EXTRA_TIP.priceUsd}` : ""
       }, сбор $${SERVICE_FEE.priceUsd.toFixed(2)}, итого $${(unitUsd * input.quantity + EXTRA_TIP.priceUsd * input.tips + SERVICE_FEE.priceUsd).toFixed(2)}${
         usd.rate ? ` (курс ${usd.rate.toFixed(2)} ₽/$)` : ""
       }`,
@@ -334,7 +334,7 @@ export async function POST(request: Request) {
             total: order.total,
             delivery: "",
             ...(order.product === "kit" ? { kit: order.tip } : {}),
-            ...(order.tips ? { tips: order.tips } : {}),
+            ...(order.tips ? { tips: order.tipKinds } : {}),
           }),
         ),
       );

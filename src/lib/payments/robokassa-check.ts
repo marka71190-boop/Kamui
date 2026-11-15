@@ -4,6 +4,7 @@
  * отмечает заказ оплаченным, пишет покупателю и создаёт накладную. Если заказа нет ни в базе, ни в таблице,
  * восстанавливает его целиком из данных счёта (в счёте Robokassa есть всё для накладной).
  */
+import { normalizeTips, unpackTips } from "@/config/products";
 import { sql } from "@/lib/db/pg";
 import { dbEnabled, ensureSchema } from "@/lib/db/schema";
 import { ORDER_ID_RE } from "@/lib/orders/id";
@@ -36,7 +37,9 @@ function orderFromInvoice(meta: PaymentShipmentMeta, outSum: number, invoice: st
     ...(meta.kit ? { product: "kit" as const, tip: meta.kit } : {}),
     quantity: qty,
     unitPrice: Number(meta.price) || Math.round(outSum / qty),
-    ...(Number(meta.tips) > 0 ? { tips: Number(meta.tips), tipPrice: Number(meta.tipPrice) || 0 } : {}),
+    ...(Number(meta.tips) > 0
+      ? { tips: Number(meta.tips), tipKinds: meta.tipKinds ? unpackTips(meta.tipKinds) : normalizeTips({ PM: meta.tips }), tipPrice: Number(meta.tipPrice) || 0 }
+      : {}),
     itemsTotal: (Number(meta.price) || 0) * qty + (Number(meta.tipPrice) || 0) * (Number(meta.tips) || 0),
     deliveryCost: Math.max(0, outSum - (Number(meta.price) || 0) * qty - (Number(meta.tipPrice) || 0) * (Number(meta.tips) || 0)),
     total: outSum,

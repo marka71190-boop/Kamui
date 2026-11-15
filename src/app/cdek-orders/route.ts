@@ -33,7 +33,7 @@ import { checkRobokassaInvoice } from "@/lib/payments/robokassa-check";
 import { reconcileYooKassa, type YooKassaReconcile } from "@/lib/payments/yookassa-reconcile";
 import { getSetting } from "@/lib/db/settings";
 import { SITE } from "@/config/site";
-import { tipsFromNote } from "@/config/products";
+import { packTips, tipsCount, tipsFromNote, tipsText, unpackTips } from "@/config/products";
 import { notifyTrack } from "@/lib/mail/notify";
 import { robokassaInvoiceFrom, type SheetPaidOrder } from "@/lib/orders/stores/google-sheets";
 import { reconcileRobokassa, type ReconcileReport } from "@/lib/payments/robokassa-reconcile";
@@ -124,7 +124,7 @@ function sheetItem(o: SheetPaidOrder): Item | null {
       qty: String(o.quantity),
       delivery: o.delivery.replace(/ · трек \d+.*$/, ""),
       ...(kit ? { kit } : {}),
-      ...(tipsFromNote(o.comment) ? { tips: String(tipsFromNote(o.comment)) } : {}),
+      ...(tipsCount(tipsFromNote(o.comment)) ? { tips: String(tipsCount(tipsFromNote(o.comment))), tipKinds: packTips(tipsFromNote(o.comment)) } : {}),
     },
     fromSheet: true,
     place: o.city,
@@ -258,7 +258,7 @@ function card(p: Item, s: CdekState, token: string, waiting = false): string {
   <header><b>${esc(id)}</b><span>${esc(when(p))} · ${esc(rub(p.amount.value))}</span></header>
   ${hideButton(token, id)}
   <p class="who">${esc(m.name)} · ${esc(m.phone)} · ${m.kit ? `подарочный набор (JOS ${esc(m.kit)}) × ` : ""}${esc(m.qty)} шт.${
-    Number(m.tips) > 0 ? ` <b class="tag">+ наклейки JOS PM × ${esc(m.tips)}</b>` : ""
+    Number(m.tips) > 0 ? ` <b class="tag">+ наклейки JOS: ${esc(m.tipKinds ? tipsText(unpackTips(m.tipKinds)) : `PM × ${m.tips}`)}</b>` : ""
   }</p>
   ${waiting ? packButton(token, id, packedAt) : ""}
   ${p.fromSheet ? `<p class="tag">${esc(p.place || "из таблицы")}${/,/.test(p.place ?? "") ? " · из-за рубежа" : ""}</p>` : ""}

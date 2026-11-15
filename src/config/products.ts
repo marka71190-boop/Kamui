@@ -71,37 +71,85 @@ export const kitOrderNote = (quantity: number, tip: string): string =>
 export const wholesaleOrderNote = (unit: string): string => `Оптовая цена (от ${WHOLESALE.minQty} шт.): ${unit} за шт.`;
 
 /**
- * Дополнительная наклейка JOS PM — «выбор Иосифа Абрамова»: докупается к мелу или набору, от 0 до maxPerOrder шт.
- * Остаток тиража мела не уменьшает. Цена для заказов из-за рубежа — priceUsd (с комиссией Robokassa, как у мела).
+ * Наклейки JOS, которые можно докупить к мелу или набору: любая жёсткость из KIT_TIPS, всего не больше maxPerOrder шт.
+ * Цена одна для всех видов. Остаток тиража мела не уменьшают.
+ * Цена для заказов из-за рубежа — priceUsd (с комиссией Robokassa, как у мела).
  */
 export const EXTRA_TIP = {
-  /** В чеке и накладной */
-  name: "Наклейка JOS PM — выбор Иосифа Абрамова",
-  /** Коротко — в таблице, письмах и на странице заказа */
-  shortName: "Наклейка JOS PM",
-  nameIntl: "JOS cue tip PM (Iosif Abramov's choice)",
-  sku: "JOS-PM",
+  /** Вид с подписью «Выбор Иосифа Абрамова» */
+  choice: "PM" as KitTip,
+  choiceNote: "Выбор Иосифа Абрамова",
+  choiceNoteEn: "Iosif Abramov's choice",
   /** Цена 1 шт., ₽ */
   price: 1300,
   /** Цена 1 шт. для заказов из-за рубежа, $ */
   priceUsd: 18,
+  /** Всего наклеек в одном заказе (все виды вместе) */
   maxPerOrder: 10,
   /** Вес одной наклейки в zip-пакете, г — для расчёта доставки */
   weight: 5,
 } as const;
 
-/** Наклеек в заказе: целое число от 0 до EXTRA_TIP.maxPerOrder */
-export const clampTips = (v: unknown): number => {
-  const n = typeof v === "number" ? v : Number.parseInt(String(v ?? ""), 10);
-  return Number.isFinite(n) ? Math.min(EXTRA_TIP.maxPerOrder, Math.max(0, Math.trunc(n))) : 0;
-};
+/** Докупленные наклейки по видам: { PM: 2, H: 1 } */
+export type TipsMap = Partial<Record<KitTip, number>>;
+
+/** Название для чека и накладной: «Наклейка JOS PM — выбор Иосифа Абрамова», «Наклейка JOS H» */
+export const extraTipName = (t: KitTip): string =>
+  t === EXTRA_TIP.choice ? `Наклейка JOS ${t} — ${EXTRA_TIP.choiceNote.toLowerCase()}` : `Наклейка JOS ${t}`;
+export const extraTipNameIntl = (t: KitTip): string => `JOS cue tip ${t}`;
+export const extraTipSku = (t: KitTip): string => `JOS-${t.replace("+", "PLUS")}`;
+
+/**
+ * Приводит к TipsMap: только известные виды, целые числа больше нуля, всего не больше maxPerOrder.
+ * Число (старый формат — только PM) → { PM: n }.
+ */
+export function normalizeTips(v: unknown): TipsMap {
+  const raw: Record<string, unknown> =
+    typeof v === "number" || typeof v === "string" ? { [EXTRA_TIP.choice]: v } : v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  const out: TipsMap = {};
+  let left: number = EXTRA_TIP.maxPerOrder;
+  for (const t of KIT_TIPS) {
+    const n = Math.trunc(Number(raw[t]));
+    if (!Number.isFinite(n) || n <= 0 || left <= 0) continue;
+    out[t] = Math.min(n, left);
+    left -= out[t]!;
+  }
+  return out;
+}
+
+/** Всего наклеек */
+export const tipsCount = (t?: TipsMap | null): number => KIT_TIPS.reduce((s, k) => s + (t?.[k] ?? 0), 0);
+
+/** «PM × 2, H × 1» */
+export const tipsText = (t?: TipsMap | null): string =>
+  KIT_TIPS.filter((k) => (t?.[k] ?? 0) > 0)
+    .map((k) => `${k} × ${t![k]}`)
+    .join(", ");
+
+/** Коротко для метаданных платежа: «PM:2,H:1» */
+export const packTips = (t: TipsMap): string =>
+  KIT_TIPS.filter((k) => (t[k] ?? 0) > 0)
+    .map((k) => `${k}:${t[k]}`)
+    .join(",");
+
+export const unpackTips = (s?: string | null): TipsMap =>
+  normalizeTips(Object.fromEntries(String(s ?? "").split(",").map((p) => p.split(":") as [string, string]).filter((p) => p.length === 2)));
 
 /** Строка для таблицы заказов (комментарий): докупленные наклейки */
-export const tipsOrderNote = (tips: number, price: string): string =>
-  `+ ${EXTRA_TIP.shortName} (выбор Иосифа) × ${tips} · ${price} за шт.`;
+export const tipsOrderNote = (t: TipsMap, price: string): string => `+ Наклейки JOS (докупка): ${tipsText(t)} · ${price} за шт.`;
 
-/** Сколько докупленных наклеек в заказе — из строки комментария (для заказов из таблицы) */
-export const tipsFromNote = (comment: string): number => clampTips(/JOS PM \(выбор Иосифа\) × (\d+)/.exec(comment ?? "")?.[1]);
+/** Докупленные наклейки из строки комментария (для заказов из таблицы); понимает и первый формат «JOS PM (выбор Иосифа) × N» */
+export function tipsFromNote(comment: string): TipsMap {
+  const c = String(comment ?? "");
+  const list = /Наклейки JOS \(докупка\): ([^·\n]+)/.exec(c)?.[1];
+  if (list) {
+    const map: Record<string, string> = {};
+    for (const m of list.matchAll(/([A-Z]+\+?) × (\d+)/g)) map[m[1]] = m[2];
+    return normalizeTips(map);
+  }
+  const old = /JOS PM \(выбор Иосифа\) × (\d+)/.exec(c)?.[1];
+  return old ? normalizeTips({ PM: old }) : {};
+}
 
 /**
  * Сервисный сбор — с каждого заказа, отдельной строкой в расчёте и в чеке.

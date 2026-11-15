@@ -2,6 +2,7 @@
  * Письма покупателю: «Спасибо за заказ» (после оплаты), трек-номер СДЭК, напоминание о сроке хранения в пункте выдачи.
  * Простая вёрстка таблицами со встроенными стилями — так письмо одинаково выглядит в Gmail, Яндексе, Mail.ru и на телефоне.
  */
+import { tipsCount, tipsText, type TipsMap } from "@/config/products";
 import { SELLER, SHOP, SITE } from "@/config/site";
 
 /** Заказ в том виде, который нужен письмам */
@@ -16,8 +17,8 @@ export interface MailOrder {
   delivery: string;
   /** Подарочный набор: наклейка JOS */
   kit?: string;
-  /** Докупленные наклейки JOS PM (выбор Иосифа) */
-  tips?: number;
+  /** Докупленные наклейки JOS по видам */
+  tips?: TipsMap;
 }
 
 export interface Mail {
@@ -48,7 +49,7 @@ export function itemsLine(o: MailOrder): string {
   const main = o.kit
     ? `Подарочный набор Kamui × Iosif Abramov (наклейка JOS ${o.kit}) — ${qty} шт.`
     : `Мел Kamui × Iosif Abramov 0.98 β — ${qty} шт.`;
-  return o.tips ? `${main}; наклейка JOS PM (выбор Иосифа) — ${o.tips} шт.` : main;
+  return tipsCount(o.tips) ? `${main}; наклейки JOS — ${tipsText(o.tips)}` : main;
 }
 
 const greeting = (o: MailOrder) => (o.name ? `Здравствуйте, ${o.name}!` : "Здравствуйте!");

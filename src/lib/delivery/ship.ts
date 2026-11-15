@@ -5,6 +5,7 @@
  * Вызывается из вебхука ЮKassa (после ответа) и со служебной страницы /cdek-orders
  * (кнопка «Создать накладную» — если автоматически не получилось).
  */
+import { normalizeTips, unpackTips } from "@/config/products";
 import { notifyTrack, quietly } from "@/lib/mail/notify";
 import { updateOrder } from "@/lib/orders/store";
 import type { PaymentShipmentMeta, YooKassaPayment } from "@/lib/payments/yookassa";
@@ -33,6 +34,9 @@ export function shipOrder(m: Partial<PaymentShipmentMeta>, opts: ShipOptions = {
   if (key) inFlight.set(key, p);
   return p;
 }
+
+/** Наклейки по видам из метаданных платежа (в первых заказах был только счётчик — это были PM) */
+const metaTipKinds = (m: Partial<PaymentShipmentMeta>) => (m.tipKinds ? unpackTips(m.tipKinds) : normalizeTips({ PM: m.tips }));
 
 async function shipOrderNow(m: Partial<PaymentShipmentMeta>, opts: ShipOptions): Promise<ShipResult> {
   const orderId = m.orderId;
@@ -63,7 +67,7 @@ async function shipOrderNow(m: Partial<PaymentShipmentMeta>, opts: ShipOptions):
         recipient: { name: m.name ?? "", phone: m.phone ?? "", email: m.email, tin: m.tin },
         countryCode: m.cc || undefined,
         kitTip: m.kit || undefined,
-        ...(Number(m.tips) > 0 ? { extraTips: { qty: Number(m.tips), price: Number(m.tipPrice) || 0 } } : {}),
+        ...(Number(m.tips) > 0 ? { extraTips: { kinds: metaTipKinds(m), price: Number(m.tipPrice) || 0 } } : {}),
       });
       shipment = { uuid, trackingNumber: null };
     }
@@ -105,7 +109,7 @@ async function shipOrderNow(m: Partial<PaymentShipmentMeta>, opts: ShipOptions):
           total: 0,
           delivery: base,
           ...(m.kit ? { kit: m.kit } : {}),
-          ...(Number(m.tips) > 0 ? { tips: Number(m.tips) } : {}),
+          ...(Number(m.tips) > 0 ? { tips: metaTipKinds(m) } : {}),
         },
         result.trackingNumber,
       ),

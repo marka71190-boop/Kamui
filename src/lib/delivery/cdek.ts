@@ -13,7 +13,7 @@
  */
 import { cdekCountry, DEFAULT_CDEK_COUNTRY } from "@/config/cdek-countries";
 import { PRODUCT, SELLER, SITE } from "@/config/site";
-import { EXTRA_TIP, KIT, productName, type ProductId } from "@/config/products";
+import { EXTRA_TIP, extraTipName, extraTipNameIntl, extraTipSku, KIT, type KitTip, type ProductId, productName, tipsCount, type TipsMap } from "@/config/products";
 
 const BASE = () =>
   (
@@ -345,8 +345,8 @@ export interface ShipmentInput {
   countryCode?: string;
   /** Подарочный набор: выбранная наклейка JOS (у мела — не задано) */
   kitTip?: string;
-  /** Докупленные наклейки JOS PM: сколько и цена 1 шт., ₽ */
-  extraTips?: { qty: number; price: number };
+  /** Докупленные наклейки JOS: по видам и цена 1 шт., ₽ */
+  extraTips?: { kinds: TipsMap; price: number };
 }
 
 /** Поля накладной, которые СДЭК требует для заказов за пределы России (страны ЕАЭС — без таможни). */
@@ -454,30 +454,28 @@ export async function createShipment(input: ShipmentInput): Promise<string> {
         phones: [{ number: phoneForCdek(input.recipient.phone) }],
       },
       // Мел — одно место со всеми штуками; наборы — каждый в своей коробке, отдельным местом
-      packages: packagesFor(input.quantity, kit ? "kit" : "chalk", input.extraTips?.qty ?? 0).map((pkg, i) => ({
+      packages: packagesFor(input.quantity, kit ? "kit" : "chalk", tipsCount(input.extraTips?.kinds)).map((pkg, i) => ({
         number: String(i + 1),
         ...pkg,
         items: [
           // Докупленные наклейки — отдельной строкой в первом месте
-          ...(i === 0 && input.extraTips && input.extraTips.qty > 0
-            ? [
-                {
-                  name: EXTRA_TIP.name,
-                  ware_key: EXTRA_TIP.sku,
-                  payment: { value: 0 },
-                  cost: input.extraTips.price,
-                  weight: EXTRA_TIP.weight,
-                  amount: input.extraTips.qty,
-                  ...(intl ? { ...ITEM_INTL, name_i18n: EXTRA_TIP.nameIntl, brand: "JOS" } : {}),
-                },
-              ]
+          ...(i === 0 && input.extraTips
+            ? (Object.entries(input.extraTips.kinds) as [KitTip, number][]).map(([t, n]) => ({
+                name: extraTipName(t),
+                ware_key: extraTipSku(t),
+                payment: { value: 0 },
+                cost: input.extraTips!.price,
+                weight: EXTRA_TIP.weight,
+                amount: n,
+                ...(intl ? { ...ITEM_INTL, name_i18n: extraTipNameIntl(t), brand: "JOS" } : {}),
+              }))
             : []),
           {
             name: kit ? productName("kit", input.kitTip) : PRODUCT.name,
             ware_key: kit ? `${KIT.sku}-${input.kitTip}` : PRODUCT.sku,
             payment: { value: 0 }, // товар оплачен онлайн
             cost: input.unitPrice,
-            weight: kit ? Math.max(1, pkg.weight - (i === 0 ? Math.round(EXTRA_TIP.weight * (input.extraTips?.qty ?? 0)) : 0)) : Math.max(1, Math.round(PACKAGE.itemWeight)),
+            weight: kit ? Math.max(1, pkg.weight - (i === 0 ? Math.round(EXTRA_TIP.weight * tipsCount(input.extraTips?.kinds)) : 0)) : Math.max(1, Math.round(PACKAGE.itemWeight)),
             amount: kit ? 1 : input.quantity,
             ...(intl ? { ...ITEM_INTL, ...(kit ? { name_i18n: KIT.nameIntl } : {}) } : {}),
           },

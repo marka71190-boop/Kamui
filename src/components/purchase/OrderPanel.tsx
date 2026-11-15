@@ -7,7 +7,21 @@ import { cdekCountry, deliveryAreaText, type CdekCountryCode } from "@/config/cd
 import type { CheckoutConfig } from "@/config/features";
 import { GALLERY } from "@/config/gallery";
 import { KIT_EVENT, KIT_PHOTO } from "@/config/kit-visual";
-import { clampTips, EXTRA_TIP, isKitTip, isWholesale, KIT_TIPS, priceFor, SERVICE_FEE, WHOLESALE, type ProductId } from "@/config/products";
+import {
+  EXTRA_TIP,
+  isKitTip,
+  isWholesale,
+  KIT_TIPS,
+  normalizeTips,
+  priceFor,
+  SERVICE_FEE,
+  tipsCount,
+  tipsText,
+  WHOLESALE,
+  type KitTip,
+  type ProductId,
+  type TipsMap,
+} from "@/config/products";
 import { PRODUCT } from "@/config/site";
 import { t } from "@/i18n/dict";
 import { RU_MARKET, type Market } from "@/i18n/market";
@@ -38,7 +52,7 @@ import styles from "./Purchase.module.css";
 
 type Stage = "intro" | "form" | "success" | "payment";
 
-type Fields = Omit<OrderInput, "quantity" | "region" | "deliveryCountry" | "payTest" | "lang" | "product" | "tip" | "tips">;
+type Fields = Omit<OrderInput, "quantity" | "region" | "deliveryCountry" | "payTest" | "lang" | "product" | "tip" | "tips" | "tipKinds">;
 
 /** Куда доставляем: страна СДЭК (RU, BY, KZ, AM, KG) или «Другая страна» — заявка менеджеру */
 type Destination = CdekCountryCode | "OTHER";
@@ -110,7 +124,8 @@ interface Draft {
   product: ProductId;
   tip: string;
   quantity: number;
-  tips?: number;
+  /** Докупленные наклейки по видам (в первой версии — число, это были PM) */
+  tips?: TipsMap | number;
   destination: string;
   open: boolean;
   fields: Partial<Record<keyof Fields, unknown>>;
@@ -182,8 +197,13 @@ export function OrderPanel({
   /** Мел или подарочный набор; у набора — наклейка JOS */
   const [product, setProduct] = useState<ProductId>("chalk");
   const [tip, setTip] = useState("");
-  /** Докупленные наклейки JOS PM (выбор Иосифа) */
-  const [tips, setTips] = useState(0);
+  /** Докупленные наклейки JOS по видам */
+  const [tipKinds, setTipKinds] = useState<TipsMap>({});
+  const tips = tipsCount(tipKinds);
+  /** Сколько наклеек этого вида — всего в заказе не больше EXTRA_TIP.maxPerOrder */
+  const setTipKind = (t: KitTip, n: number) => setTipKinds((cur) => normalizeTips({ ...cur, [t]: n }));
+  /** Список видов раскрыт (по умолчанию — свёрнут, если ничего не выбрано) */
+  const [tipsOpen, setTipsOpen] = useState(false);
   const [destination, setDestination] = useState<Destination>(lang === "en" ? "OTHER" : "RU");
   const region: OrderInput["region"] = destination === "OTHER" ? "intl" : "ru";
   const deliveryCountry: CdekCountryCode = destination === "OTHER" ? "RU" : destination;
@@ -247,7 +267,9 @@ export function OrderPanel({
       if (d.product === "chalk" || d.product === "kit") setProduct(d.product);
       if (isKitTip(d.tip)) setTip(d.tip);
       if (Number.isInteger(d.quantity) && d.quantity >= 1) setQuantity(Math.min(d.quantity, PRODUCT.maxPerOrder));
-      setTips(clampTips(d.tips));
+      const restoredTips = normalizeTips(d.tips);
+      setTipKinds(restoredTips);
+      if (tipsCount(restoredTips)) setTipsOpen(true);
       if (lang === "ru" && (d.destination === "OTHER" || allCountries.includes(d.destination as CdekCountryCode)))
         setDestination(d.destination as Destination);
       const restored: Partial<Fields> = {};
@@ -269,15 +291,15 @@ export function OrderPanel({
   useEffect(() => {
     if (!draftLoaded || (stage !== "intro" && stage !== "form")) return;
     const { consent: _c, newsletter: _n, trap: _t, ...rest } = fields;
-    writeDraft({ product, tip, quantity, tips, destination, open: stage === "form", fields: rest });
-  }, [draftLoaded, fields, product, tip, quantity, tips, destination, stage]);
+    writeDraft({ product, tip, quantity, tips: tipKinds, destination, open: stage === "form", fields: rest });
+  }, [draftLoaded, fields, product, tip, quantity, tipKinds, destination, stage]);
 
   /** Заказ оформлен или оплачен — форма начинается с чистого листа */
   const forgetDraft = () => {
     clearDraft();
     setFields(EMPTY);
     setQuantity(1);
-    setTips(0);
+    setTipKinds({});
     setSubmitted(false);
   };
 
@@ -306,7 +328,7 @@ export function OrderPanel({
   });
 
   const input = (): OrderInput =>
-    normalizeOrderInput({ ...fields, quantity, product, tip, tips, ...where(destination), payTest, lang });
+    normalizeOrderInput({ ...fields, quantity, product, tip, tipKinds, ...where(destination), payTest, lang });
 
   const revalidate = (
     next: Partial<Fields> = {},
@@ -714,12 +736,45 @@ export function OrderPanel({
 
         {!soldOut && (
           <div className={styles.addon} data-on={tips > 0 || undefined}>
-            <p className={styles.addonText}>
-              <b id="tips-label">{tx.tipsTitle}</b>
-              <span>{tx.tipsSub(money(tipPrice))}</span>
-            </p>
-            <QuantityStepper value={tips} min={0} max={EXTRA_TIP.maxPerOrder} onChange={setTips} labelledBy="tips-label" lang={lang} />
-            {tips > 0 && <b className={styles.addonSum}>+{money(tipsTotal)}</b>}
+            <div className={styles.addonHead}>
+              <p className={styles.addonText}>
+                <b>{tx.tipsTitle}</b>
+                <span>{tx.tipsSub(money(tipPrice), EXTRA_TIP.maxPerOrder)}</span>
+              </p>
+              {tips > 0 && <b className={styles.addonSum}>+{money(tipsTotal)}</b>}
+              <button
+                type="button"
+                className={styles.addonToggle}
+                aria-expanded={tipsOpen}
+                aria-controls="extra-tips"
+                onClick={() => setTipsOpen((v) => !v)}
+              >
+                {tipsOpen ? tx.tipsHide : tips > 0 ? tx.tipsChange : tx.tipsAdd}
+              </button>
+            </div>
+            {!tipsOpen && tips > 0 && <p className={styles.addonPicked}>{tipsText(tipKinds)}</p>}
+            <ul id="extra-tips" className={styles.tipList} hidden={!tipsOpen}>
+              {KIT_TIPS.map((t) => {
+                const n = tipKinds[t] ?? 0;
+                return (
+                  <li key={t} className={styles.tipItem} data-on={n > 0 || undefined} data-choice={t === EXTRA_TIP.choice || undefined}>
+                    <span className={styles.tipName}>
+                      <b id={`extra-tip-${t}`}>JOS {t}</b>
+                      {t === EXTRA_TIP.choice && <small>{lang === "en" ? EXTRA_TIP.choiceNoteEn : EXTRA_TIP.choiceNote}</small>}
+                    </span>
+                    <QuantityStepper
+                      value={n}
+                      min={0}
+                      max={n + (EXTRA_TIP.maxPerOrder - tips)}
+                      onChange={(v) => setTipKind(t, v)}
+                      labelledBy={`extra-tip-${t}`}
+                      lang={lang}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+            {tipsOpen && tips >= EXTRA_TIP.maxPerOrder && <p className={styles.addonPicked}>{tx.tipsMax(EXTRA_TIP.maxPerOrder)}</p>}
           </div>
         )}
 
@@ -1035,7 +1090,7 @@ export function OrderPanel({
                 {tips > 0 && (
                   <p className={styles.breakdownRow}>
                     <span>
-                      {tx.tipsLine} · {lang === "en" ? `${tips} pcs` : `${tips} шт.`}
+                      {tx.tipsLine} · {tipsText(tipKinds)}
                     </span>
                     <b>{money(tipsTotal)}</b>
                   </p>

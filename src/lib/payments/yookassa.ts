@@ -11,7 +11,7 @@
  *   5. вебхук перепроверяет платёж через API (getPayment), меняет статус заказа
  *      и, если подключён СДЭК, создаёт отправление по данным из metadata платежа.
  */
-import { EXTRA_TIP, KIT, productName, SERVICE_FEE } from "@/config/products";
+import { EXTRA_TIP, extraTipName, KIT, type KitTip, normalizeTips, packTips, productName, SERVICE_FEE, tipsCount, type TipsMap } from "@/config/products";
 import { PRODUCT, SITE } from "@/config/site";
 import { ORDER_ID_RE } from "@/lib/orders/id";
 import type { Order, OrderPayment } from "@/lib/orders/types";
@@ -81,8 +81,9 @@ export interface PaymentShipmentMeta {
   delivery?: string;
   /** Подарочный набор: наклейка JOS (у мела — нет) */
   kit?: string;
-  /** Докупленные наклейки JOS PM: сколько и почём (₽ за шт.) */
+  /** Докупленные наклейки JOS: всего, по видам («PM:2,H:1») и почём (₽ за шт.) */
   tips?: string;
+  tipKinds?: string;
   tipPrice?: string;
   qty: string;
   price: string;
@@ -90,6 +91,10 @@ export interface PaymentShipmentMeta {
   phone: string;
   email: string;
 }
+
+/** Докупленные наклейки заказа по видам (у первых заказов был только счётчик — это были PM) */
+export const orderTipKinds = (o: Pick<Order, "tips" | "tipKinds">): TipsMap =>
+  o.tipKinds && tipsCount(o.tipKinds) ? o.tipKinds : o.tips ? normalizeTips({ PM: o.tips }) : {};
 
 /** Данные для накладной СДЭК из заказа (их же передаём в Robokassa, см. robokassa.ts) */
 export function paymentMetadataFor(order: Order): PaymentShipmentMeta {
@@ -106,6 +111,7 @@ export function paymentMetadataFor(order: Order): PaymentShipmentMeta {
   if (order.product === "kit") meta.kit = order.tip || "-";
   if (order.tips) {
     meta.tips = String(order.tips);
+    meta.tipKinds = packTips(orderTipKinds(order));
     meta.tipPrice = String(order.tipPrice ?? EXTRA_TIP.price);
   }
   if (order.delivery.provider === "cdek" && c?.pickupPointCode) {
@@ -186,10 +192,11 @@ function receiptFor(order: Order) {
       payment_subject: "commodity",
     },
   ];
-  if (order.tips) {
+  // Наклейки JOS — строкой на каждый вид
+  for (const [t, n] of Object.entries(orderTipKinds(order)) as [KitTip, number][]) {
     items.push({
-      description: EXTRA_TIP.name.slice(0, 128),
-      quantity: order.tips,
+      description: extraTipName(t).slice(0, 128),
+      quantity: n,
       amount: money(order.tipPrice ?? EXTRA_TIP.price),
       vat_code: vat,
       payment_mode: "full_payment",

@@ -3,6 +3,8 @@
  * чтобы подключение интеграций не требовало менять формат данных.
  */
 
+import type { TipsMap } from "@/config/products";
+
 export type OrderRegion = "ru" | "intl";
 
 export type OrderStatus =
@@ -99,8 +101,9 @@ export interface Order {
   /** Покупатель согласился получать письма о заказе (подтверждение оплаты, трек-номер) */
   newsletter?: true;
   unitPrice: number;
-  /** Докупленные наклейки JOS PM (выбор Иосифа): сколько и почём, ₽ за шт. */
+  /** Докупленные наклейки JOS: всего, по видам и почём (₽ за шт., одна цена для всех видов) */
   tips?: number;
+  tipKinds?: TipsMap;
   tipPrice?: number;
   /** Стоимость товаров (мел или наборы + наклейки), ₽ */
   itemsTotal: number;

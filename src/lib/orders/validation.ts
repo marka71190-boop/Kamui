@@ -4,7 +4,7 @@
 import type { Lang } from "@/i18n/lang";
 import { toLatin } from "@/lib/translit";
 import { CDEK_COUNTRIES, cdekCountry, DEFAULT_CDEK_COUNTRY, isCdekCountry, type CdekCountryCode } from "@/config/cdek-countries";
-import { clampTips, isKitTip, type ProductId } from "@/config/products";
+import { isKitTip, normalizeTips, type ProductId, tipsCount, type TipsMap } from "@/config/products";
 import type { OrderRegion } from "./types";
 import { emailSyntaxOk } from "./email-check";
 
@@ -31,7 +31,9 @@ export interface OrderInput {
   phone: string;
   email: string;
   quantity: number;
-  /** Докупленные наклейки JOS PM (выбор Иосифа), 0–10 */
+  /** Докупленные наклейки JOS по видам ({ PM: 2, H: 1 }), всего до 10 */
+  tipKinds: TipsMap;
+  /** Сколько их всего */
   tips: number;
   city: string;
   comment: string;
@@ -51,7 +53,7 @@ export interface OrderInput {
   trap: string;
 }
 
-export type OrderField = Exclude<keyof OrderInput, "lang" | "region" | "trap" | "cityCode" | "payTest" | "product" | "tips">;
+export type OrderField = Exclude<keyof OrderInput, "lang" | "region" | "trap" | "cityCode" | "payTest" | "product" | "tips" | "tipKinds">;
 export type FieldErrors = Partial<Record<OrderField, string>>;
 
 export const LIMITS = {
@@ -85,6 +87,7 @@ export function normalizeOrderInput(raw: unknown): OrderInput {
   const name = clean(r.name, LIMITS.name);
   const deliveryCountry: CdekCountryCode = region === "ru" && isCdekCountry(r.deliveryCountry) ? r.deliveryCountry : DEFAULT_CDEK_COUNTRY;
   const product: ProductId = r.product === "kit" ? "kit" : "chalk";
+  const tipKinds = normalizeTips(r.tipKinds ?? r.tips);
   return {
     lang,
     region,
@@ -96,7 +99,8 @@ export function normalizeOrderInput(raw: unknown): OrderInput {
     phone: clean(r.phone, LIMITS.phone),
     email: clean(r.email, LIMITS.email).toLowerCase(),
     quantity: Number.isFinite(q) ? Math.trunc(q) : 0,
-    tips: clampTips(r.tips),
+    tipKinds,
+    tips: tipsCount(tipKinds),
     city: clean(r.city, LIMITS.city),
     comment: clean(r.comment, LIMITS.comment),
     country: clean(r.country, LIMITS.country),

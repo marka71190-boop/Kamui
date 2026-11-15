@@ -239,7 +239,7 @@ function tiles(s: Sum): string {
 ${col("Сайт", "", `${n(qty - s.offQty)} шт.`, [
     ["заказов", n(s.orders - s.offCount)],
     ["за товар", rub(s.goods - s.offTotal)],
-    ["в т. ч. наклейки JOS PM", `${n(s.tips)} шт.`],
+    ["в т. ч. наклейки JOS", `${n(s.tips)} шт.`],
     ["доставка (оплатили покупатели)", rub(s.delivery)],
     ["сервисный сбор", rub(s.fee)],
     ["получено", rub(s.total - s.offTotal)],
@@ -388,7 +388,7 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
     .filter((o) => !o.offsite)
     .map(
       (o) =>
-        `<tr><td>${esc(o.id)} <span class="dim">· ${esc(when(o.at))}${o.abroad ? " · из-за рубежа" : ""}</span><br><span class="dim">${esc(o.name)}</span></td><td>${o.kit ? "набор" : "мел"} × ${o.qty}${o.tips ? `<br><span class="dim">+ JOS PM × ${o.tips}</span>` : ""}</td><td>${esc(rub(o.goods))}</td><td>${esc(rub(o.delivery))}</td><td>${esc(rub(o.total))}</td></tr>`,
+        `<tr><td>${esc(o.id)} <span class="dim">· ${esc(when(o.at))}${o.abroad ? " · из-за рубежа" : ""}</span><br><span class="dim">${esc(o.name)}</span></td><td>${o.kit ? "набор" : "мел"} × ${o.qty}${o.tips ? `<br><span class="dim">+ наклейки JOS × ${o.tips}</span>` : ""}</td><td>${esc(rub(o.goods))}</td><td>${esc(rub(o.delivery))}</td><td>${esc(rub(o.total))}</td></tr>`,
     );
   const offRows = chosen
     .filter((o) => o.offsite)
@@ -419,7 +419,7 @@ ${tiles(total)}
 <tbody>${periodRows.join("\n")}</tbody>
 <tfoot><tr><td>За всё время</td>${cells(sum(sales))}</tr></tfoot>
 </table></div>
-<p class="formula">«За товар» — без доставки и сервисного сбора (у сайта — вместе с наклейками JOS PM). Доставку и сбор платят только покупатели сайта, они показаны в итогах периода выше.</p>
+<p class="formula">«За товар» — без доставки и сервисного сбора (у сайта — вместе с наклейками JOS). Доставку и сбор платят только покупатели сайта, они показаны в итогах периода выше.</p>
 <div class="pair">
 <div><h2>Сайт · заказы за ${period} · ${siteRows.length}</h2>
 ${

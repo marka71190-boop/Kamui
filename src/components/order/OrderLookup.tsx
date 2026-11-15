@@ -33,8 +33,8 @@ const TX = {
     manual: "Доставка этого заказа согласуется индивидуально — мы свяжемся с вами по почте.",
     order: "Заказ",
     from: "от",
-    goods: (q: number, kit: boolean, tips = 0) =>
-      `${kit ? "Подарочный набор" : "Мел Kamui × Iosif Abramov 0.98 β"} · ${q} шт.${tips ? ` + наклейка JOS PM · ${tips} шт.` : ""}`,
+    goods: (q: number, kit: boolean, tips = "") =>
+      `${kit ? "Подарочный набор" : "Мел Kamui × Iosif Abramov 0.98 β"} · ${q} шт.${tips ? ` + наклейки JOS: ${tips}` : ""}`,
     total: "Сумма",
     delivery: "Доставка",
     tracking: "Трек-номер СДЭК",
@@ -73,8 +73,8 @@ const TX = {
     manual: "Delivery of this order is arranged individually — we will contact you by email.",
     order: "Order",
     from: "placed",
-    goods: (q: number, kit: boolean, tips = 0) =>
-      `${kit ? "Gift set" : "Kamui × Iosif Abramov 0.98 β chalk"} · ${q} pcs${tips ? ` + JOS PM tip · ${tips} pcs` : ""}`,
+    goods: (q: number, kit: boolean, tips = "") =>
+      `${kit ? "Gift set" : "Kamui × Iosif Abramov 0.98 β chalk"} · ${q} pcs${tips ? ` + JOS tips: ${tips}` : ""}`,
     total: "Total",
     delivery: "Delivery",
     tracking: "CDEK tracking number",

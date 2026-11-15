@@ -75,7 +75,7 @@ export function buildOrder(input: OrderInput, opts: CreateOrderOptions = {}): Or
   const notes = [
     kit ? kitOrderNote(input.quantity, input.tip) : "",
     isWholesale(input.product, input.quantity) ? wholesaleOrderNote(formatPrice(unitPrice)) : "",
-    tips ? tipsOrderNote(tips, formatPrice(tipPrice)) : "",
+    tips ? tipsOrderNote(input.tipKinds, formatPrice(tipPrice)) : "",
     input.taxId ? `${input.deliveryCountry === "KG" ? "ПИН" : "ИИН"} получателя: ${input.taxId}` : "",
     input.comment,
   ].filter(Boolean);
@@ -100,7 +100,7 @@ export function buildOrder(input: OrderInput, opts: CreateOrderOptions = {}): Or
     // Письма о заказе входят в единое согласие формы (чек, трек-номер)
     ...(input.consent ? { newsletter: true as const } : {}),
     unitPrice,
-    ...(tips ? { tips, tipPrice } : {}),
+    ...(tips ? { tips, tipKinds: input.tipKinds, tipPrice } : {}),
     itemsTotal,
     serviceFee,
     deliveryCost,

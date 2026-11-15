@@ -5,7 +5,7 @@ import { deliveryAreaText } from "@/config/cdek-countries";
 import { features } from "@/config/features";
 import { PRODUCT, SELLER, SHOP, SITE, sellerContactsText } from "@/config/site";
 import { kitPriceUsd, unitPriceUsd, wholesalePriceUsd } from "@/lib/currency";
-import { EXTRA_TIP, KIT, SERVICE_FEE, WHOLESALE } from "@/config/products";
+import { EXTRA_TIP, KIT, KIT_TIPS, SERVICE_FEE, WHOLESALE } from "@/config/products";
 import { formatPrice } from "@/lib/format";
 import { renderPerRequestOnOwnServer } from "@/lib/render-mode";
 
@@ -76,10 +76,11 @@ export default async function OfertaPage() {
         4.1. Цена Товара указана на Сайте в рублях и составляет {formatPrice(PRODUCT.price)} за 1 шт. мела и{" "}
         {formatPrice(KIT.price)} за подарочный набор. При заказе от {WHOLESALE.minQty} шт. мела в одном заказе действует
         оптовая цена — {formatPrice(WHOLESALE.price)} за 1 шт.; на подарочные наборы она не распространяется. Цена
-        зафиксирована в момент оформления заказа и в дальнейшем не меняется. К заказу можно добавить наклейку
-        для кия JOS PM — {formatPrice(EXTRA_TIP.price)} за 1 шт., не более {EXTRA_TIP.maxPerOrder} шт. в одном заказе.
+        зафиксирована в момент оформления заказа и в дальнейшем не меняется. К заказу можно добавить наклейки
+        для кия JOS любой жёсткости ({KIT_TIPS.join(", ")}) — {formatPrice(EXTRA_TIP.price)} за 1 шт., всего не более{" "}
+        {EXTRA_TIP.maxPerOrder} шт. в одном заказе.
         {abroadUsd &&
-          ` Для заказов с доставкой за пределы России (п. 5.1) цена Товара составляет $${unitPriceUsd()} за 1 шт. мела (при заказе от ${WHOLESALE.minQty} шт. — $${wholesalePriceUsd()} за 1 шт.) и $${kitPriceUsd()} за подарочный набор, наклейки JOS PM — $${EXTRA_TIP.priceUsd} за 1 шт., стоимость доставки также указывается в долларах США. Оплата таких заказов производится в рублях по курсу Центрального банка Российской Федерации на дату оформления заказа; сумма к оплате в рублях отображается Покупателю до оплаты.`}
+          ` Для заказов с доставкой за пределы России (п. 5.1) цена Товара составляет $${unitPriceUsd()} за 1 шт. мела (при заказе от ${WHOLESALE.minQty} шт. — $${wholesalePriceUsd()} за 1 шт.) и $${kitPriceUsd()} за подарочный набор, наклейки JOS — $${EXTRA_TIP.priceUsd} за 1 шт., стоимость доставки также указывается в долларах США. Оплата таких заказов производится в рублях по курсу Центрального банка Российской Федерации на дату оформления заказа; сумма к оплате в рублях отображается Покупателю до оплаты.`}
       </p>
       <p>
         4.2.{" "}

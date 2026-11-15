@@ -5,7 +5,7 @@
  * country (BY, KZ, AM, KG) при оплате через Robokassa — дополнительно цена в долларах (usd) для покупателя из-за рубежа.
  */
 import { features } from "@/config/features";
-import { clampTips, EXTRA_TIP, productPrice, type ProductId } from "@/config/products";
+import { EXTRA_TIP, productPrice, type ProductId } from "@/config/products";
 import { PRODUCT } from "@/config/site";
 import { abroadUnitUsd, deliveryUsdFor, getAbroadPricing, usdToRub } from "@/lib/currency";
 import { calculateDelivery } from "@/lib/delivery/cdek";
@@ -50,7 +50,7 @@ async function quote(request: Request, body: { cityCode?: unknown; quantity?: un
     // (мел от 10 шт. — по оптовой цене)
     const unitRub = abroad ? usdToRub(abroadUnitUsd(abroad, product, quantity), abroad.rate) : productPrice(product, quantity);
     // Докупленные наклейки JOS PM тоже едут в посылке — добавляют вес и объявленную стоимость
-    const tips = clampTips(body.tips);
+    const tips = Math.min(EXTRA_TIP.maxPerOrder, Math.max(0, Math.trunc(Number(body.tips) || 0)));
     const tipRub = abroad ? usdToRub(EXTRA_TIP.priceUsd, abroad.rate) : EXTRA_TIP.price;
     const quote = await calculateDelivery({ toCityCode: cityCode, quantity, product, tips, declaredValue: unitRub * quantity + tipRub * tips });
     // Покупателю показываем цену с наценкой; тариф СДЭК наружу не отдаём.
