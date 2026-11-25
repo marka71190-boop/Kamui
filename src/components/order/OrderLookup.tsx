@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Lang } from "@/i18n/lang";
 import { formatPrice } from "@/lib/format";
 import type { TrackView } from "@/lib/orders/track";
@@ -8,18 +8,18 @@ import styles from "./OrderLookup.module.css";
 
 const TX = {
   ru: {
-    lead: "Введите номер заказа из письма или со страницы оплаты и почту либо телефон, указанные при оформлении.",
-    id: "Номер заказа",
-    contact: "Почта или телефон из заказа",
-    contactPlaceholder: "you@example.com или +7 900 000-00-00",
-    find: "Показать статус",
-    finding: "Ищем заказ…",
+    lead: "Введите номер заказа (из письма или со страницы оплаты) или номер телефона, указанный при оформлении.",
+    query: "Номер заказа или телефон",
+    placeholder: "KA-260925-AB12 или +7 900 000-00-00",
+    find: "Найти заказ",
+    finding: "Ищем…",
     errors: {
-      input: "Проверьте номер заказа — он выглядит так: KA-260925-AB12.",
-      notfound: "Заказ не найден. Проверьте номер и почту (телефон) — они должны совпадать с указанными при оформлении.",
+      input: "Введите номер заказа (например, KA-260925-AB12) или телефон полностью — от 10 цифр.",
+      notfound: "Заказ не найден. Проверьте номер заказа или телефон — он должен совпадать с указанным при оформлении.",
       rate: "Слишком много попыток. Подождите несколько минут и попробуйте снова.",
       unavailable: "Не удалось получить статус. Попробуйте чуть позже.",
     } as Record<string, string>,
+    found: (n: number) => (n === 1 ? "Найден 1 заказ" : `Найдено заказов: ${n} (новые сверху)`),
     steps: ["Оформлен", "Оплачен", "Собран", "Передан в СДЭК", "В пункте выдачи", "Получен"],
     hints: [
       "Заказ оформлен и ждёт оплаты. Если вы уже оплатили, статус обновится в течение нескольких минут.",
@@ -41,25 +41,25 @@ const TX = {
     track: "Отследить на сайте СДЭК",
     cdek: "Статус в СДЭК",
     keep: "Бесплатное хранение до",
-    another: "Проверить другой заказ",
+    another: "Найти другой заказ",
     help: "Нужна помощь с заказом?",
     tg: "Напишите в Telegram",
     mail: "или на почту",
     locale: "ru-RU",
   },
   en: {
-    lead: "Enter the order number from the email or the payment page, and the email or phone you used when ordering.",
-    id: "Order number",
-    contact: "Email or phone from the order",
-    contactPlaceholder: "you@example.com or +49 30 1234567",
-    find: "Show status",
+    lead: "Enter your order number (from the email or the payment page) or the phone number you used when ordering.",
+    query: "Order number or phone",
+    placeholder: "KA-260925-AB12 or +49 30 1234567",
+    find: "Find order",
     finding: "Looking up…",
     errors: {
-      input: "Please check the order number — it looks like KA-260925-AB12.",
-      notfound: "Order not found. Check the number and the email (phone) — they must match the ones used when ordering.",
+      input: "Enter the order number (e.g. KA-260925-AB12) or the full phone number — at least 10 digits.",
+      notfound: "Order not found. Check the order number or phone — it must match the one used when ordering.",
       rate: "Too many attempts. Please wait a few minutes and try again.",
       unavailable: "Could not get the status. Please try again later.",
     } as Record<string, string>,
+    found: (n: number) => (n === 1 ? "1 order found" : `${n} orders found (newest first)`),
     steps: ["Placed", "Paid", "Packed", "Handed to CDEK", "At pickup point", "Received"],
     hints: [
       "The order is placed and awaits payment. If you have already paid, the status will update within a few minutes.",
@@ -81,7 +81,7 @@ const TX = {
     track: "Track on cdek.ru",
     cdek: "CDEK status",
     keep: "Free storage until",
-    another: "Check another order",
+    another: "Find another order",
     help: "Need help with your order?",
     tg: "Message us on Telegram",
     mail: "or email",
@@ -89,6 +89,10 @@ const TX = {
   },
 };
 
+/**
+ * Поиск заказа по номеру или телефону — на странице /order и в блоке «Где мой заказ» на главной.
+ * initialId (из ссылки /order?id=…) — сразу ищем этот заказ.
+ */
 export function OrderLookup({
   initialId = "",
   lang = "ru",
@@ -101,14 +105,13 @@ export function OrderLookup({
   email?: string;
 }) {
   const tx = TX[lang];
-  const [id, setId] = useState(initialId);
-  const [contact, setContact] = useState("");
+  const [query, setQuery] = useState(initialId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [order, setOrder] = useState<TrackView | null>(null);
+  const [orders, setOrders] = useState<TrackView[] | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const find = async (q: string) => {
     if (busy) return;
     setError("");
     setBusy(true);
@@ -116,16 +119,29 @@ export function OrderLookup({
       const res = await fetch("/api/orders/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: id.trim(), contact: contact.trim() }),
+        body: JSON.stringify({ query: q.trim() }),
       });
-      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; order?: TrackView; error?: string };
-      if (res.ok && body.ok && body.order) setOrder(body.order);
-      else setError(tx.errors[body.error ?? ""] ?? tx.errors.unavailable);
+      const body = (await res.json().catch(() => ({}))) as { ok?: boolean; orders?: TrackView[]; error?: string };
+      if (res.ok && body.ok && body.orders?.length) {
+        setOrders(body.orders);
+        window.setTimeout(() => resultRef.current?.focus({ preventScroll: true }), 50);
+      } else setError(tx.errors[body.error ?? ""] ?? tx.errors.unavailable);
     } catch {
       setError(tx.errors.unavailable);
     } finally {
       setBusy(false);
     }
+  };
+
+  // Ссылка из письма /order?id=KA-… — показываем статус сразу
+  useEffect(() => {
+    if (initialId) void find(initialId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void find(query);
   };
 
   const date = (iso: string) => {
@@ -146,75 +162,90 @@ export function OrderLookup({
     </p>
   );
 
-  if (order) {
+  if (orders) {
     return (
-      <div className={styles.result} lang={lang} role="status" aria-live="polite">
-        <p className={styles.number}>
-          {tx.order} <b>{order.id}</b> <span>{tx.from} {date(order.createdAt)}</span>
-        </p>
+      <div className={styles.result} lang={lang} role="status" aria-live="polite" ref={resultRef} tabIndex={-1}>
+        {orders.length > 1 && <p className={styles.found}>{tx.found(orders.length)}</p>}
+        {orders.map((order) => (
+          <article key={order.id} className={styles.card}>
+            <p className={styles.number}>
+              {tx.order} <b>{order.id}</b> <span>{tx.from} {date(order.createdAt)}</span>
+            </p>
 
-        {order.canceled ? (
-          <p className={styles.state} data-bad>
-            {tx.canceled}
-          </p>
-        ) : order.manual ? (
-          <p className={styles.state}>{order.step >= 1 ? `${tx.steps[1]}. ` : ""}{tx.manual}</p>
-        ) : (
-          <>
-            <ol className={styles.steps}>
-              {tx.steps.map((s, i) => (
-                <li key={s} data-done={i <= order.step || undefined} data-current={i === order.step || undefined}>
-                  <span aria-hidden="true">{i < order.step ? "✓" : i + 1}</span>
-                  {s}
-                </li>
-              ))}
-            </ol>
-            <p className={styles.state}>{tx.hints[order.step]}</p>
-          </>
-        )}
+            {order.canceled ? (
+              <p className={styles.state} data-bad>
+                {tx.canceled}
+              </p>
+            ) : order.manual ? (
+              <p className={styles.state}>
+                {order.step >= 1 ? `${tx.steps[1]}. ` : ""}
+                {tx.manual}
+              </p>
+            ) : (
+              <>
+                <ol className={styles.steps}>
+                  {tx.steps.map((s, i) => (
+                    <li key={s} data-done={i <= order.step || undefined} data-current={i === order.step || undefined}>
+                      <span aria-hidden="true">{i < order.step ? "✓" : i + 1}</span>
+                      {s}
+                    </li>
+                  ))}
+                </ol>
+                <p className={styles.state}>{tx.hints[order.step]}</p>
+              </>
+            )}
 
-        <dl className={styles.facts}>
-          <div>
-            <dt>{tx.order}</dt>
-            <dd>{tx.goods(order.quantity, order.kit, order.tips)}</dd>
-          </div>
-          <div>
-            <dt>{tx.total}</dt>
-            <dd>{formatPrice(order.total)}</dd>
-          </div>
-          {order.delivery && (
-            <div>
-              <dt>{tx.delivery}</dt>
-              <dd>{order.delivery}</dd>
-            </div>
-          )}
-          {order.tracking && order.step >= 1 && !order.canceled && (
-            <div>
-              <dt>{tx.tracking}</dt>
-              <dd>
-                <b>{order.tracking}</b>{" "}
-                <a href={`https://www.cdek.ru/ru/tracking/?order_id=${encodeURIComponent(order.tracking)}`} target="_blank" rel="noopener noreferrer">
-                  {tx.track}
-                </a>
-              </dd>
-            </div>
-          )}
-          {order.cdekStatus && (
-            <div>
-              <dt>{tx.cdek}</dt>
-              <dd>{order.cdekStatus}</dd>
-            </div>
-          )}
-          {order.keepFreeUntil && order.step === 4 && (
-            <div>
-              <dt>{tx.keep}</dt>
-              <dd>{date(order.keepFreeUntil)}</dd>
-            </div>
-          )}
-        </dl>
+            <dl className={styles.facts}>
+              <div>
+                <dt>{tx.order}</dt>
+                <dd>{tx.goods(order.quantity, order.kit, order.tips)}</dd>
+              </div>
+              <div>
+                <dt>{tx.total}</dt>
+                <dd>{formatPrice(order.total)}</dd>
+              </div>
+              {order.delivery && (
+                <div>
+                  <dt>{tx.delivery}</dt>
+                  <dd>{order.delivery}</dd>
+                </div>
+              )}
+              {order.tracking && order.step >= 1 && !order.canceled && (
+                <div>
+                  <dt>{tx.tracking}</dt>
+                  <dd>
+                    <b>{order.tracking}</b>{" "}
+                    <a href={`https://www.cdek.ru/ru/tracking/?order_id=${encodeURIComponent(order.tracking)}`} target="_blank" rel="noopener noreferrer">
+                      {tx.track}
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {order.cdekStatus && (
+                <div>
+                  <dt>{tx.cdek}</dt>
+                  <dd>{order.cdekStatus}</dd>
+                </div>
+              )}
+              {order.keepFreeUntil && order.step === 4 && (
+                <div>
+                  <dt>{tx.keep}</dt>
+                  <dd>{date(order.keepFreeUntil)}</dd>
+                </div>
+              )}
+            </dl>
+          </article>
+        ))}
 
         {help}
-        <button type="button" className="btn btn--ghost" onClick={() => setOrder(null)}>
+        <button
+          type="button"
+          className="btn btn--ghost"
+          onClick={() => {
+            setOrders(null);
+            setQuery("");
+          }}
+        >
           {tx.another}
         </button>
       </div>
@@ -225,29 +256,17 @@ export function OrderLookup({
     <form className={styles.form} onSubmit={submit} lang={lang}>
       <p>{tx.lead}</p>
       <label className={styles.field}>
-        <span>{tx.id}</span>
+        <span>{tx.query}</span>
         <input
-          name="order"
+          name="query"
           required
-          autoComplete="off"
-          autoCapitalize="characters"
+          autoComplete="tel"
+          inputMode="text"
           spellCheck={false}
-          maxLength={20}
-          placeholder="KA-260925-AB12"
-          value={id}
-          onChange={(e) => setId(e.target.value.toUpperCase())}
-        />
-      </label>
-      <label className={styles.field}>
-        <span>{tx.contact}</span>
-        <input
-          name="contact"
-          required
-          autoComplete="email"
-          maxLength={120}
-          placeholder={tx.contactPlaceholder}
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
+          maxLength={40}
+          placeholder={tx.placeholder}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
         />
       </label>
       {error && (

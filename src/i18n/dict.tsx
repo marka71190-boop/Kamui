@@ -23,6 +23,7 @@ const ru = {
       { hash: "story", label: "История" },
       { hash: "gallery", label: "Галерея" },
       { hash: "kit", label: "Набор" },
+      { hash: "track", label: "Где мой заказ" },
     ],
     left: "Осталось",
     buy: "Купить",
@@ -444,7 +445,7 @@ const ru = {
     email: "Email",
     docs: "Документы",
     links: [
-      { href: "/order", label: "Где мой заказ" },
+      { href: "/#track", label: "Где мой заказ" },
       { href: "/delivery", label: "Доставка и оплата" },
       { href: "/returns", label: "Обмен и возврат" },
       { href: "/oferta", label: "Публичная оферта" },
@@ -470,6 +471,7 @@ const en: Dict = {
       { hash: "story", label: "Story" },
       { hash: "gallery", label: "Gallery" },
       { hash: "kit", label: "Gift set" },
+      { hash: "track", label: "Track order" },
     ],
     left: "Left",
     buy: "Buy",
@@ -838,7 +840,7 @@ const en: Dict = {
     email: "Email",
     docs: "Documents",
     links: [
-      { href: "/order?lang=en", label: "Track your order" },
+      { href: "/en#track", label: "Track your order" },
       { href: "/delivery", label: "Delivery & payment (RU)" },
       { href: "/returns", label: "Returns (RU)" },
       { href: "/oferta", label: "Public offer (RU)" },

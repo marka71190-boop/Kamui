@@ -15,6 +15,7 @@ import { Gallery } from "./sections/Gallery";
 import { Kit } from "./sections/Kit";
 import { Official } from "./sections/Official";
 import { Story } from "./sections/Story";
+import { Track } from "./sections/Track";
 import { Marquee } from "./ui/Marquee";
 import { RevealObserver } from "./ui/RevealObserver";
 
@@ -59,6 +60,7 @@ export function HomePage({
           wholesalePrice={formatMoney(market.wholesalePrice, market.currency)}
           abroadWholesale={abroad ? formatMoney(abroad.wholesaleUsd, "USD") : undefined}
         />
+        <Track lang={lang} />
       </main>
       <Footer lang={lang} />
       <MobileBuyBar stock={stock} market={market} />

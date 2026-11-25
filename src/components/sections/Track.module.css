@@ -1,0 +1,30 @@
+.track {
+  border-top: 1px solid var(--c-line);
+  background: var(--c-bg);
+}
+
+/* В заголовке кириллица: у Bebas её нет — весь заголовок одним шрифтом Oswald */
+.title {
+  font-family: var(--font-oswald), var(--font-display);
+}
+
+.lead {
+  max-width: 420px;
+  margin-top: 18px;
+  color: var(--c-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

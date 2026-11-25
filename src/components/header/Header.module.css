@@ -85,6 +85,7 @@
 
 .navLink {
   position: relative;
+  white-space: nowrap;
   padding-block: 8px;
   color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
@@ -275,6 +276,12 @@
 .lang:hover {
   border-color: rgba(255, 255, 255, 0.4);
   color: #fff;
+}
+
+@media (max-width: 1499px) {
+  .navWide {
+    display: none;
+  }
 }
 
 @media (max-width: 1100px) {

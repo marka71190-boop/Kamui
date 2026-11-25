@@ -160,3 +160,28 @@
   color: var(--c-muted);
   font-size: 14px;
 }
+
+/* несколько заказов по одному телефону */
+.found {
+  color: var(--c-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.card {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--c-line-2);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.result:focus {
+  outline: none;
+}
+
+.error {
+  margin: 0;
+}

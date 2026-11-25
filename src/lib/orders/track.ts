@@ -1,6 +1,7 @@
 /**
- * Статус заказа для покупателя (страница /order): по номеру заказа и почте или телефону из заказа.
- * Отдаём только то, что нужно для отслеживания, — без ФИО и контактов.
+ * Статус заказа для покупателя (страница /order и блок «Где мой заказ» на главной):
+ * по номеру заказа или по номеру телефона из заказа.
+ * Отдаём только то, что нужно для отслеживания, — без ФИО, контактов и адреса пункта выдачи.
  */
 import { features } from "@/config/features";
 import { orderTipKinds } from "@/lib/payments/yookassa";
@@ -69,16 +70,26 @@ interface Row {
   packed_at: string | null;
 }
 
-async function fromDb(id: string, contact: string): Promise<TrackView | null> {
-  await ensureSchema();
-  const r = (
-    await sql<Row>(
-      `select o.id, o.created_at, o.status, o.email, o.phone, o.total, o.data, o.tracking, f.manual_tracking, f.packed_at
-         from orders o left join order_flags f on f.order_id = o.id where o.id = $1`,
-      [id],
-    )
-  ).rows[0];
-  if (!r || !contactMatches(contact, r.email, r.phone)) return null;
+/** Сколько заказов показываем по одному телефону (самые новые) */
+const MAX_BY_PHONE = 5;
+
+/** Последние 10 цифр телефона — так «8 900…», «+7 900…» и «900…» считаются одним номером */
+export const phoneKey = (s: string): string => digits(s).slice(-10);
+
+/**
+ * Что ввели в поле поиска: номер заказа (KA-260925-AB12, регистр и пробелы неважны) или телефон (от 10 цифр).
+ * null — ни то ни другое.
+ */
+export function parseTrackQuery(raw: string): { kind: "id"; id: string } | { kind: "phone"; key: string } | null {
+  const q = String(raw ?? "").trim().toUpperCase().replace(/\s+/g, "").replace(/^KA(\d)/, "KA-$1");
+  const id = /^KA-?(\d{6})-?([A-Z0-9]{4})$/.exec(q);
+  if (id) return { kind: "id", id: `KA-${id[1]}-${id[2]}` };
+  const d = digits(q);
+  if (d.length >= 10 && d.length <= 15 && !/[A-Z]/.test(q)) return { kind: "phone", key: d.slice(-10) };
+  return null;
+}
+
+function viewFromRow(r: Row): TrackView {
   const d = r.data;
   const tracking = r.tracking || d.delivery?.cdek?.trackingNumber || r.manual_tracking || undefined;
   return {
@@ -96,11 +107,32 @@ async function fromDb(id: string, contact: string): Promise<TrackView | null> {
   };
 }
 
+const COLS = `o.id, o.created_at, o.status, o.email, o.phone, o.total, o.data, o.tracking, f.manual_tracking, f.packed_at
+  from orders o left join order_flags f on f.order_id = o.id`;
+
+async function fromDb(id: string, contact: string): Promise<TrackView | null> {
+  await ensureSchema();
+  const r = (await sql<Row>(`select ${COLS} where o.id = $1`, [id])).rows[0];
+  if (!r || (contact && !contactMatches(contact, r.email, r.phone))) return null;
+  return viewFromRow(r);
+}
+
+async function fromDbByPhone(key: string): Promise<TrackView[]> {
+  await ensureSchema();
+  const r = await sql<Row>(
+    `select ${COLS} where right(regexp_replace(o.phone, '\\D', '', 'g'), 10) = $1 order by o.created_at desc limit ${MAX_BY_PHONE}`,
+    [key],
+  );
+  return r.rows.map(viewFromRow);
+}
+
 /** Без базы — из Google Таблицы (заказы за последние 90 дней) */
-async function fromSheet(id: string, contact: string): Promise<TrackView | null> {
+async function sheetOrders() {
   const ov = await ordersOverview(90, true);
-  const o = [...(ov?.paid ?? []), ...(ov?.awaiting ?? []), ...(ov?.intl ?? [])].find((x) => x.id === id);
-  if (!o || !contactMatches(contact, o.email, o.phone)) return null;
+  return [...(ov?.paid ?? []), ...(ov?.awaiting ?? []), ...(ov?.intl ?? [])];
+}
+
+function viewFromSheet(o: Awaited<ReturnType<typeof sheetOrders>>[number]): TrackView {
   const tracking = / · трек (\d{6,14})/.exec(o.delivery)?.[1];
   return {
     id: o.id,
@@ -117,14 +149,27 @@ async function fromSheet(id: string, contact: string): Promise<TrackView | null>
   };
 }
 
+async function fromSheet(id: string, contact: string): Promise<TrackView | null> {
+  const o = (await sheetOrders()).find((x) => x.id === id);
+  if (!o || (contact && !contactMatches(contact, o.email, o.phone))) return null;
+  return viewFromSheet(o);
+}
+
+async function fromSheetByPhone(key: string): Promise<TrackView[]> {
+  const seen = new Set<string>();
+  return (await sheetOrders())
+    .filter((o) => phoneKey(o.phone) === key && !seen.has(o.id) && seen.add(o.id))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, MAX_BY_PHONE)
+    .map(viewFromSheet);
+}
+
 const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
   Promise.race([p, new Promise<null>((res) => setTimeout(() => res(null), ms))]);
 
-/** null — заказа с таким номером и контактом нет */
-export async function trackOrder(id: string, contact: string): Promise<TrackView | null> {
-  const view = dbEnabled() ? await fromDb(id, contact) : await fromSheet(id, contact);
-  if (!view || view.canceled || view.manual || view.step === 0 || view.step === 5 || !features.cdek) return view;
-  // Оплаченный заказ: уточняем у СДЭК, где посылка (не дольше нескольких секунд — иначе покажем то, что знаем сами)
+/** Оплаченный заказ: уточняем у СДЭК, где посылка (не дольше нескольких секунд — иначе покажем то, что знаем сами) */
+async function withCdek(view: TrackView): Promise<TrackView> {
+  if (view.canceled || view.manual || view.step === 0 || view.step === 5 || !features.cdek) return view;
   try {
     const s = await withTimeout(shipmentFor(view.id), 6000);
     if (s) {
@@ -141,4 +186,27 @@ export async function trackOrder(id: string, contact: string): Promise<TrackView
     console.error("[track] СДЭК:", (err as Error).message);
   }
   return view;
+}
+
+/**
+ * Поиск без второго подтверждения (только номер или только телефон): адрес пункта выдачи не показываем —
+ * только «СДЭК, пункт выдачи». Сумма, состав, этап и трек-номер — видны.
+ */
+const publicView = (v: TrackView): TrackView => ({
+  ...v,
+  delivery: v.manual ? "" : v.delivery ? "СДЭК, пункт выдачи" : "",
+});
+
+/** null — заказа с таким номером (и контактом, если он указан) нет */
+export async function trackOrder(id: string, contact = ""): Promise<TrackView | null> {
+  const view = dbEnabled() ? await fromDb(id, contact) : await fromSheet(id, contact);
+  if (!view) return null;
+  const full = await withCdek(view);
+  return contact ? full : publicView(full);
+}
+
+/** Заказы по номеру телефона — самые новые сверху (пустой список — заказов нет) */
+export async function trackByPhone(key: string): Promise<TrackView[]> {
+  const list = dbEnabled() ? await fromDbByPhone(key) : await fromSheetByPhone(key);
+  return (await Promise.all(list.map(withCdek))).map(publicView);
 }

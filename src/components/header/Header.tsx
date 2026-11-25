@@ -56,7 +56,12 @@ export function Header({ stock: initialStock, market = RU_MARKET }: { stock?: St
 
           <nav className={styles.nav} aria-label={tx.mainNav}>
             {NAV.map((item) => (
-              <a key={item.href} href={item.href} className={styles.navLink}>
+              <a
+                key={item.href}
+                href={item.href}
+                // «Где мой заказ» в шапке — только на широких экранах (иначе не помещается); он есть в меню, подвале и на главной
+                className={item.href.endsWith("#track") ? `${styles.navLink} ${styles.navWide}` : styles.navLink}
+              >
                 {item.label}
               </a>
             ))}
@@ -111,7 +116,7 @@ export function Header({ stock: initialStock, market = RU_MARKET }: { stock?: St
             </a>
           ))}
           <a href={buyHref} onClick={close} style={{ transitionDelay: "300ms" }}>
-            <span>05</span>
+            <span>{String(NAV.length + 1).padStart(2, "0")}</span>
             {tx.buy}
           </a>
           <a href={otherLang.href} hrefLang={otherLang.hreflang} onClick={close} style={{ transitionDelay: "350ms" }}>
