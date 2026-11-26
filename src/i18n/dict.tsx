@@ -242,7 +242,7 @@ const ru = {
     wholesaleOn: (min: number, saving: string) => `Оптовая цена от ${min} шт. — экономия ${saving}`,
     wholesaleBadge: "опт",
     /** Опт закрыт: как заказать больше */
-    bulkContact: `Оптом (от ${WHOLESALE.minQty} шт.) — по телефону`,
+    bulkContact: `Оптом (больше ${PRODUCT.maxPerOrder} шт.) — по телефону`,
     bulkCallWa: "звонок или",
     bulkOr: "или в",
     kitOption: "Подарочный набор",
@@ -690,7 +690,7 @@ const en: Dict = {
     wholesaleTake: (min) => `Take ${min} pcs`,
     wholesaleOn: (min, saving) => `Bulk price for ${min}+ pcs — you save ${saving}`,
     wholesaleBadge: "bulk",
-    bulkContact: `Bulk orders (${WHOLESALE.minQty}+ pcs) — call`,
+    bulkContact: `Bulk orders (over ${PRODUCT.maxPerOrder} pcs) — call`,
     bulkCallWa: "or",
     bulkOr: "or",
     kitOption: "Gift set",
