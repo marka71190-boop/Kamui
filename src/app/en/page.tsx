@@ -34,7 +34,7 @@ export default async function EnglishPage() {
     storeJsonLd(),
     websiteJsonLd("en"),
     faqJsonLd(
-      t("en").faq.items(formatMoney(usd.unit, "USD"), undefined, false, "", formatMoney(usd.kit, "USD"), formatMoney(usd.wholesale, "USD")),
+      t("en").faq.items(formatMoney(usd.unit, "USD"), undefined, false, "", formatMoney(usd.kit, "USD"), formatMoney(usd.wholesale, "USD"), undefined, stock.maxPerOrder),
     ),
   ]);
 

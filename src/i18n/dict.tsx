@@ -242,7 +242,7 @@ const ru = {
     wholesaleOn: (min: number, saving: string) => `Оптовая цена от ${min} шт. — экономия ${saving}`,
     wholesaleBadge: "опт",
     /** Опт закрыт: как заказать больше */
-    bulkContact: `Оптом (больше ${PRODUCT.maxPerOrder} шт.) — по телефону`,
+    bulkContact: (max: number) => `Оптом (больше ${max} шт.) — по телефону`,
     bulkCallWa: "звонок или",
     bulkOr: "или в",
     kitOption: "Подарочный набор",
@@ -366,6 +366,8 @@ const ru = {
       /** Оптовая цена мела (от 10 шт.): в рублях и для заказов из-за рубежа */
       wholesale = `${n(WHOLESALE.price, "ru")} ₽`,
       abroadWholesale = "",
+      /** Сколько штук можно купить в одном заказе */
+      maxPerOrder: number = PRODUCT.maxPerOrder,
     ) => [
       {
         q: "Что такое мел Kamui × Iosif Abramov 0.98 β?",
@@ -390,10 +392,10 @@ const ru = {
       {
         q: "Есть ли оптовая цена?",
         a: !WHOLESALE.enabled
-          ? `Оптовые продажи через сайт закрыты: в одном заказе — до ${PRODUCT.maxPerOrder} шт. По вопросам опта звоните или пишите в WhatsApp ${SELLER.phone}, в Telegram — @${SELLER.telegram}.`
+          ? `Оптовые продажи через сайт закрыты: в одном заказе — до ${maxPerOrder} шт. По вопросам опта звоните или пишите в WhatsApp ${SELLER.phone}, в Telegram — @${SELLER.telegram}.`
           : `Да. Если в одном заказе от ${WHOLESALE.minQty} шт. мела, каждый стоит ${wholesale} вместо ${price}${
           abroadPrice && abroadWholesale ? ` (для заказов из-за рубежа — ${abroadWholesale} вместо ${abroadPrice})` : ""
-        }. В одном заказе — до ${PRODUCT.maxPerOrder} шт. На подарочные наборы оптовая цена не распространяется.`,
+        }. В одном заказе — до ${maxPerOrder} шт. На подарочные наборы оптовая цена не распространяется.`,
       },
       {
         q: "Это оригинальный мел? Где купить его официально?",
@@ -690,7 +692,7 @@ const en: Dict = {
     wholesaleTake: (min) => `Take ${min} pcs`,
     wholesaleOn: (min, saving) => `Bulk price for ${min}+ pcs — you save ${saving}`,
     wholesaleBadge: "bulk",
-    bulkContact: `Bulk orders (over ${PRODUCT.maxPerOrder} pcs) — call`,
+    bulkContact: (max: number) => `Bulk orders (over ${max} pcs) — call`,
     bulkCallWa: "or",
     bulkOr: "or",
     kitOption: "Gift set",
@@ -802,6 +804,8 @@ const en: Dict = {
       _abroadPrice?: string,
       kitPrice = `$${KIT.priceUsd}`,
       wholesale = `$${WHOLESALE.priceUsd}`,
+      _abroadWholesale?: string,
+      maxPerOrder: number = PRODUCT.maxPerOrder,
     ) => [
       {
         q: "What is the Kamui × Iosif Abramov 0.98 β chalk?",
@@ -826,8 +830,8 @@ const en: Dict = {
       {
         q: "Is there a bulk price?",
         a: !WHOLESALE.enabled
-          ? `Bulk sales through the website are closed: up to ${PRODUCT.maxPerOrder} pieces per order. For bulk orders call or message us on WhatsApp ${SELLER.phone}, or on Telegram @${SELLER.telegram}.`
-          : `Yes. When one order has ${WHOLESALE.minQty} or more pieces of chalk, each costs ${wholesale} instead of ${price}. Up to ${PRODUCT.maxPerOrder} pieces per order. The bulk price does not apply to gift sets.`,
+          ? `Bulk sales through the website are closed: up to ${maxPerOrder} pieces per order. For bulk orders call or message us on WhatsApp ${SELLER.phone}, or on Telegram @${SELLER.telegram}.`
+          : `Yes. When one order has ${WHOLESALE.minQty} or more pieces of chalk, each costs ${wholesale} instead of ${price}. Up to ${maxPerOrder} pieces per order. The bulk price does not apply to gift sets.`,
       },
       {
         q: "Is it original? Where can I buy it officially?",

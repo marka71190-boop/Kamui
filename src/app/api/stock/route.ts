@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TTL_MS = 15_000;
-type Payload = { ok: true; total: number; sold: number; remaining: number } | { ok: false };
+type Payload = { ok: true; total: number; sold: number; remaining: number; maxPerOrder: number } | { ok: false };
 let memo: { at: number; data: Payload } | null = null;
 let inflight: Promise<Payload> | null = null;
 
@@ -19,7 +19,7 @@ async function load(): Promise<Payload> {
   const s = await getStock({ fresh: true });
   // Таблица не ответила и остались только цифры из конфига — пусть браузер оставит цифры со страницы
   if (features.googleSheets && s.source === "config") return { ok: false };
-  return { ok: true, total: s.total, sold: s.sold, remaining: s.remaining };
+  return { ok: true, total: s.total, sold: s.sold, remaining: s.remaining, maxPerOrder: s.maxPerOrder };
 }
 
 export async function GET() {

@@ -11,7 +11,6 @@
 import { after } from "next/server";
 import { features } from "@/config/features";
 import { EXTRA_TIP, isWholesale, priceFor, productPrice, SERVICE_FEE, tipsText } from "@/config/products";
-import { PRODUCT } from "@/config/site";
 import { calculateDelivery, findPickupPoint } from "@/lib/delivery/cdek";
 import { customerDeliveryPrice } from "@/lib/delivery/price";
 import { clientIp, createRateLimiter, json } from "@/lib/http";
@@ -25,6 +24,7 @@ import { createRobokassaPayment } from "@/lib/payments/robokassa";
 import { createPayment, siteOriginFor } from "@/lib/payments/yookassa";
 import { abroadUnitUsd, deliveryUsdFor, getAbroadPricing, getUsdPrice, usdToRub } from "@/lib/currency";
 import { getStock } from "@/lib/stock";
+import { getMaxPerOrder } from "@/lib/order-limit";
 
 export const runtime = "nodejs";
 // Без force-dynamic: так остаток из таблицы берётся из кэша данных (обновляется раз в минуту), а не ждёт ответа таблицы.
@@ -132,7 +132,8 @@ export async function POST(request: Request) {
   const testToken = process.env.PAYMENTS_TEST_TOKEN ?? "";
   const hasTestToken = testToken.length >= 8 && input.payTest === testToken;
   const countries = !useCdek ? ["RU"] : hasTestToken ? features.cdekCountries : features.publicCdekCountries;
-  const fieldErrors = validateOrderInput(input, { maxQuantity: PRODUCT.maxPerOrder, requirePickupPoint: useCdek, countries });
+  const perOrder = await getMaxPerOrder();
+  const fieldErrors = validateOrderInput(input, { maxQuantity: perOrder, requirePickupPoint: useCdek, countries });
   if (Object.keys(fieldErrors).length > 0) return json({ ok: false, error: formError, fieldErrors }, 400);
 
   // Почта: у домена должна быть почта (иначе письмо с оплатой и треком никогда не дойдёт)
@@ -164,7 +165,7 @@ export async function POST(request: Request) {
   ]);
   if (stock) {
     const errors = validateOrderInput(input, {
-      maxQuantity: Math.min(PRODUCT.maxPerOrder, stock.remaining),
+      maxQuantity: Math.min(perOrder, stock.remaining),
       requirePickupPoint: useCdek,
       countries,
     });

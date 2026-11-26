@@ -13,6 +13,7 @@
 import { sql } from "@/lib/db/pg";
 import { dbEnabled, ensureSchema } from "@/lib/db/schema";
 import { mailEnabled, validEmail } from "@/lib/mail/notify";
+import { getMaxPerOrder, MAX_PER_ORDER_LIMIT, saveMaxPerOrder } from "@/lib/order-limit";
 import {
   addBatch,
   addOffsiteSale,
@@ -272,7 +273,19 @@ const MESSAGES: Record<string, { ok: boolean; text: string }> = {
   baddate: { ok: false, text: "Укажите дату поступления." },
   badmail: { ok: false, text: "Проверьте адрес почты." },
   badnum: { ok: false, text: "Порог — целое число от нуля." },
+  limit: { ok: true, text: "Сохранено. Сайт уже продаёт в одном заказе не больше этого количества (обновится у покупателей в течение минуты)." },
+  badlimit: { ok: false, text: `Количество в заказе — целое число от 1 до ${MAX_PER_ORDER_LIMIT}.` },
 };
+
+/** Сколько мелков можно купить в одном заказе на сайте; больше — опт по телефону */
+function limitSection(token: string, perOrder: number): string {
+  const hid = `<input type="hidden" name="token" value="${esc(token)}">`;
+  return `<div class="box"><h3>Сколько мелков можно купить в одном заказе</h3>
+<form method="post">${hid}<input type="hidden" name="action" value="limit_save">
+<label>Не больше, шт.<input type="number" name="limit" value="${perOrder}" min="1" max="${MAX_PER_ORDER_LIMIT}" step="1" required></label>
+<button type="submit">Сохранить</button></form>
+<p class="formula">Сейчас на сайте можно купить до ${perOrder} шт. в одном заказе (мел или подарочные наборы). Кому нужно больше — видит надпись «Оптом (больше ${perOrder} шт.)» с телефоном, WhatsApp и Telegram. Число меняется и в оферте.</p></div>`;
+}
 
 function stockSection(token: string, w: Warehouse, today: string, offsite: OffsiteSale[]): string {
   const hid = `<input type="hidden" name="token" value="${esc(token)}">`;
@@ -344,7 +357,7 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
     return page(`<h1>Продажи</h1><p class="msg">Отчёт считается по базе данных заказов, а она не подключена (переменная DATABASE_URL).</p>`);
   const offsite = await offsiteSales();
   const sales = [...(await loadSales()), ...offsiteAsSales(offsite)].sort((x, y) => y.at - x.at);
-  const wh = await warehouse();
+  const [wh, perOrder] = await Promise.all([warehouse(), getMaxPerOrder()]);
   const message = MESSAGES[q.get("msg") ?? ""] ?? (q.get("err") ? { ok: false, text: q.get("err")!.slice(0, 300) } : null);
   const now = Date.now();
   const base = `?token=${esc(encodeURIComponent(token))}`;
@@ -401,6 +414,7 @@ async function render(token: string, q: URLSearchParams): Promise<Response> {
   return page(`<h1>Продажи</h1>
 <p class="lead">Отчётный период — с ${START_DAY}-го по ${START_DAY}-е число (${START_DAY}-е уже относится к новому периоду). Считаются оплаченные заказы по дате оплаты, время московское.</p>
 ${message ? `<p class="msg${message.ok ? " ok" : ""}">${esc(message.text)}</p>` : ""}
+${limitSection(token, perOrder)}
 ${stockSection(token, wh, ymd(now), offsite)}
 <h2>Продажи за период</h2>
 <form method="get">
@@ -489,6 +503,11 @@ export async function POST(request: Request) {
       if (!(threshold >= 0)) return back("msg", "badnum");
       if (!validEmail(email)) return back("msg", "badmail");
       await saveWarehouseSettings({ threshold, email });
+    } else if (act === "limit_save") {
+      const limit = whole("limit");
+      if (!(Number.isInteger(limit) && limit >= 1 && limit <= MAX_PER_ORDER_LIMIT)) return back("msg", "badlimit");
+      await saveMaxPerOrder(limit);
+      return back("msg", "limit");
     } else if (act === "wh_test") {
       await sendStockMail(await warehouse(), false);
       return back("msg", "mailed");

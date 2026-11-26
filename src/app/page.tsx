@@ -37,6 +37,7 @@ export default async function Page() {
         formatMoney(KIT.price, "RUB"),
         formatMoney(WHOLESALE.price, "RUB"),
         abroad ? formatMoney(abroad.wholesaleUsd, "USD") : "",
+        stock.maxPerOrder,
       ),
     ),
   ]);

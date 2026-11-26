@@ -36,7 +36,7 @@ export function HomePage({
 }) {
   const lang = market.lang;
   // В браузер — только цифры для показа
-  const stock: StockView = { total: full.total, sold: full.sold, remaining: full.remaining, soldOut: full.soldOut };
+  const stock: StockView = { total: full.total, sold: full.sold, remaining: full.remaining, soldOut: full.soldOut, maxPerOrder: full.maxPerOrder };
   return (
     <LiveStockProvider initial={stock}>
       <Header stock={stock} market={market} />
@@ -59,6 +59,7 @@ export function HomePage({
           kitPrice={formatMoney(market.kitPrice, market.currency)}
           wholesalePrice={formatMoney(market.wholesalePrice, market.currency)}
           abroadWholesale={abroad ? formatMoney(abroad.wholesaleUsd, "USD") : undefined}
+          maxPerOrder={stock.maxPerOrder}
         />
         <Track lang={lang} />
       </main>

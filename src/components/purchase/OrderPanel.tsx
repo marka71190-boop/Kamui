@@ -189,7 +189,9 @@ export function OrderPanel({
   const stock = useLiveStock(initialStock);
   const lang = market.lang;
   const tx = t(lang).order;
-  const maxQuantity = Math.max(0, Math.min(PRODUCT.maxPerOrder, stock.remaining));
+  /** Сколько можно купить в одном заказе — задаётся на странице «Продажи» */
+  const perOrder = stock.maxPerOrder ?? PRODUCT.maxPerOrder;
+  const maxQuantity = Math.max(0, Math.min(perOrder, stock.remaining));
   const soldOut = maxQuantity === 0;
 
   const [stage, setStage] = useState<Stage>("intro");
@@ -266,7 +268,7 @@ export function OrderPanel({
     if (d) {
       if (d.product === "chalk" || d.product === "kit") setProduct(d.product);
       if (isKitTip(d.tip)) setTip(d.tip);
-      if (Number.isInteger(d.quantity) && d.quantity >= 1) setQuantity(Math.min(d.quantity, PRODUCT.maxPerOrder));
+      if (Number.isInteger(d.quantity) && d.quantity >= 1) setQuantity(Math.min(d.quantity, perOrder));
       const restoredTips = normalizeTips(d.tips);
       setTipKinds(restoredTips);
       if (tipsCount(restoredTips)) setTipsOpen(true);
@@ -717,7 +719,7 @@ export function OrderPanel({
           {!soldOut && !WHOLESALE.enabled && (
             <p className={styles.wholesale}>
               <span>
-                {tx.bulkContact}{" "}
+                {tx.bulkContact(perOrder)}{" "}
                 {SELLER.phone && (
                   <>
                     <a href={`tel:${SELLER.phone.replace(/[^\d+]/g, "")}`}>{SELLER.phone}</a> ({tx.bulkCallWa}{" "}

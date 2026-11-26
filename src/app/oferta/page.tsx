@@ -8,6 +8,7 @@ import { kitPriceUsd, unitPriceUsd, wholesalePriceUsd } from "@/lib/currency";
 import { EXTRA_TIP, KIT, KIT_TIPS, SERVICE_FEE, WHOLESALE } from "@/config/products";
 import { formatPrice } from "@/lib/format";
 import { renderPerRequestOnOwnServer } from "@/lib/render-mode";
+import { getMaxPerOrder } from "@/lib/order-limit";
 
 export const metadata: Metadata = {
   title: "Публичная оферта",
@@ -18,6 +19,8 @@ export const metadata: Metadata = {
 export default async function OfertaPage() {
   // Условия зависят от ключей ЮKassa и СДЭК, которые на своём сервере есть только при запуске
   await renderPerRequestOnOwnServer();
+  /** Сколько штук в одном заказе — задаётся на странице «Продажи» */
+  const perOrder = await getMaxPerOrder();
   const online = features.payments;
   const free = features.freeDelivery;
   const area = deliveryAreaText(features.publicCdekCountries);
@@ -69,7 +72,7 @@ export default async function OfertaPage() {
         3.2. После оформления заказу присваивается номер. Продавец вправе связаться с Покупателем для уточнения
         деталей заказа.
       </p>
-      <p>3.3. В одном заказе можно приобрести не более {PRODUCT.maxPerOrder} экземпляров Товара.</p>
+      <p>3.3. В одном заказе можно приобрести не более {perOrder} экземпляров Товара.</p>
 
       <h2>4. Цена и оплата</h2>
       <p>
@@ -77,7 +80,7 @@ export default async function OfertaPage() {
         {formatPrice(KIT.price)} за подарочный набор.
         {WHOLESALE.enabled
           ? ` При заказе от ${WHOLESALE.minQty} шт. мела в одном заказе действует оптовая цена — ${formatPrice(WHOLESALE.price)} за 1 шт.; на подарочные наборы она не распространяется.`
-          : ` В одном заказе — не более ${PRODUCT.maxPerOrder} шт.; оптовые продажи через Сайт не ведутся.`}{" "}
+          : ` В одном заказе — не более ${perOrder} шт.; оптовые продажи через Сайт не ведутся.`}{" "}
         Цена
         зафиксирована в момент оформления заказа и в дальнейшем не меняется. К заказу можно добавить наклейки
         для кия JOS любой жёсткости ({KIT_TIPS.join(", ")}) — {formatPrice(EXTRA_TIP.price)} за 1 шт., всего не более{" "}

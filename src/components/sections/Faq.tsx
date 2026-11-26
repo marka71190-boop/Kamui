@@ -17,6 +17,7 @@ export function Faq({
   kitPrice,
   wholesalePrice,
   abroadWholesale,
+  maxPerOrder,
 }: {
   lang?: Lang;
   price: string;
@@ -29,9 +30,11 @@ export function Faq({
   /** Оптовая цена мела от 10 шт., «3 000 ₽», и для заказов из-за рубежа, «$41» */
   wholesalePrice?: string;
   abroadWholesale?: string;
+  /** Сколько штук можно купить в одном заказе */
+  maxPerOrder?: number;
 }) {
   const tx = t(lang).faq;
-  const items = tx.items(price, countries, robokassa, abroadPrice, kitPrice, wholesalePrice, abroadWholesale);
+  const items = tx.items(price, countries, robokassa, abroadPrice, kitPrice, wholesalePrice, abroadWholesale, maxPerOrder);
   return (
     <section id="faq" className={`section ${styles.faq}`} aria-labelledby="faq-title">
       <div className={`container ${styles.grid}`}>

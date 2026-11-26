@@ -10,7 +10,8 @@ import type { StockView } from "@/lib/stock";
 
 const LiveStockContext = createContext<StockView | null>(null);
 
-const same = (a: StockView, b: StockView) => a.total === b.total && a.sold === b.sold && a.remaining === b.remaining;
+const same = (a: StockView, b: StockView) =>
+  a.total === b.total && a.sold === b.sold && a.remaining === b.remaining && a.maxPerOrder === b.maxPerOrder;
 
 export function LiveStockProvider({ initial, children }: { initial: StockView; children: ReactNode }) {
   const [stock, setStock] = useState<StockView>(initial);
@@ -26,8 +27,11 @@ export function LiveStockProvider({ initial, children }: { initial: StockView; c
         const sold = Number(d.sold);
         const remaining = Number(d.remaining);
         if (![total, sold, remaining].every(Number.isFinite)) return;
-        const next = { total, sold, remaining, soldOut: remaining <= 0 };
-        setStock((prev) => (same(prev, next) ? prev : next));
+        const limit = Number(d.maxPerOrder);
+        setStock((prev) => {
+          const next = { total, sold, remaining, soldOut: remaining <= 0, maxPerOrder: Number.isInteger(limit) && limit > 0 ? limit : prev.maxPerOrder };
+          return same(prev, next) ? prev : next;
+        });
       } catch {
         /* нет связи — остаются цифры со страницы */
       }

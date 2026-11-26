@@ -6,11 +6,11 @@
  */
 import { features } from "@/config/features";
 import { EXTRA_TIP, productPrice, type ProductId } from "@/config/products";
-import { PRODUCT } from "@/config/site";
 import { abroadUnitUsd, deliveryUsdFor, getAbroadPricing, usdToRub } from "@/lib/currency";
 import { calculateDelivery } from "@/lib/delivery/cdek";
 import { customerDeliveryPrice } from "@/lib/delivery/price";
 import { clientIp, createRateLimiter, json } from "@/lib/http";
+import { getMaxPerOrder } from "@/lib/order-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +36,7 @@ async function quote(request: Request, body: { cityCode?: unknown; quantity?: un
   if (!features.cdek) return json({ ok: false, error: "Доставка СДЭК пока не подключена" }, 503);
   if (!rateLimit(clientIp(request)).ok) return json({ ok: false, error: "Слишком много запросов" }, 429);
   const cityCode = Number(body.cityCode);
-  const quantity = Math.min(PRODUCT.maxPerOrder, Math.max(1, Math.trunc(Number(body.quantity) || 1)));
+  const quantity = Math.min(await getMaxPerOrder(), Math.max(1, Math.trunc(Number(body.quantity) || 1)));
   if (!Number.isInteger(cityCode) || cityCode <= 0) return json({ ok: false, error: "Не указан cityCode" }, 400);
   try {
     // Заказ из-за рубежа с оплатой через Robokassa — цена в долларах с надбавкой на комиссию

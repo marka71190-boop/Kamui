@@ -1,5 +1,6 @@
 import { features } from "@/config/features";
 import { SOLD_COUNT, TOTAL_STOCK } from "@/config/stock";
+import { getMaxPerOrder } from "@/lib/order-limit";
 import { paidQuantity } from "@/lib/payments/yookassa";
 import { fetchStockFromSheet } from "./orders/stores/google-sheets";
 
@@ -13,10 +14,12 @@ export interface Stock {
   soldManual: number;
   /** Оплачено на сайте через ЮKassa (null — не удалось узнать) */
   soldOnline: number | null;
+  /** Сколько штук можно купить в одном заказе (задаётся на странице «Продажи») */
+  maxPerOrder: number;
 }
 
 /** Остаток для показа на странице (без служебных полей). */
-export type StockView = Pick<Stock, "total" | "sold" | "remaining" | "soldOut">;
+export type StockView = Pick<Stock, "total" | "sold" | "remaining" | "soldOut"> & { maxPerOrder?: number };
 
 /** Последнее удачное значение «оплачено на сайте» — если ЮKassa на минуту недоступна, счётчик не прыгает назад. */
 let lastOnline: number | null = null;
@@ -68,7 +71,7 @@ async function manualStock(opts: { fresh?: boolean }): Promise<{ total: number; 
  *   SOLD_COUNT — продажи вне сайта; заказы, оплаченные на сайте через ЮKassa, прибавляются автоматически.
  */
 export async function getStock(opts: { fresh?: boolean } = {}): Promise<Stock> {
-  const [manual, online] = await Promise.all([manualStock(opts), soldOnline(opts)]);
+  const [manual, online, maxPerOrder] = await Promise.all([manualStock(opts), soldOnline(opts), getMaxPerOrder()]);
   const total = Math.max(0, manual.total);
   const sold = Math.min(total, Math.max(0, manual.sold) + (online ?? 0));
   const remaining = Math.max(0, total - sold);
@@ -80,5 +83,6 @@ export async function getStock(opts: { fresh?: boolean } = {}): Promise<Stock> {
     source: manual.source,
     soldManual: manual.sold,
     soldOnline: online,
+    maxPerOrder,
   };
 }
