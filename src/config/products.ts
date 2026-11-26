@@ -35,13 +35,16 @@ export const KIT = {
  * На подарочные наборы не распространяется.
  */
 export const WHOLESALE = {
+  /** Опт на сайте закрыт: оптовой цены нет, в заказе до PRODUCT.maxPerOrder шт., опт — по телефону и в Telegram */
+  enabled: false as boolean,
   minQty: 10,
   price: 3000,
   priceUsd: 41,
 } as const;
 
 /** Действует ли оптовая цена: мел, от WHOLESALE.minQty шт. */
-export const isWholesale = (p: ProductId, quantity: number): boolean => p !== "kit" && quantity >= WHOLESALE.minQty;
+export const isWholesale = (p: ProductId, quantity: number): boolean =>
+  WHOLESALE.enabled && p !== "kit" && quantity >= WHOLESALE.minQty;
 
 /** Цены одной версии сайта (₽ или $): мел, подарочный набор, мел по оптовой цене */
 export interface PriceList {

@@ -29,8 +29,11 @@ export const PRODUCT = {
    */
   priceUsd: 48,
   currency: "RUB",
-  /** Максимум штук в одной заявке (от 10 шт. мела — оптовая цена, см. WHOLESALE в products.ts) */
-  maxPerOrder: 50,
+  /**
+   * Максимум штук в одной заявке. Опт на сайте закрыт (WHOLESALE.enabled в products.ts) — до 9 шт.;
+   * больше — по телефону, WhatsApp или в Telegram. Если опт снова откроется — вернуть 50.
+   */
+  maxPerOrder: 9,
 } as const;
 
 /** Реквизиты продавца (показываются в подвале и в политике конфиденциальности). */
@@ -49,7 +52,8 @@ export const SELLER = {
   nameEn: "Individual Entrepreneur Abramova Alina Gurgenovna",
   legalAddressEn: "132/1 Obryvnaya St., Krasnodar, 350011, Russia",
   actualAddressEn: "40 Shosse Neftyanikov St., Krasnodar, 350051, Russia",
-  phone: "" as string,
+  /** Телефон для звонков и WhatsApp */
+  phone: "+7 995 265-10-77" as string,
   /** Telegram поддержки (без @) — кнопки «Написать в Telegram» на сайте, в подвале и в документах */
   telegram: "abramov_shop1" as string,
 } as const;
@@ -66,6 +70,9 @@ export const SHOP = {
 
 /** Ссылка на Telegram поддержки ("" — не указан) */
 export const telegramUrl = (): string => (SELLER.telegram ? `https://t.me/${SELLER.telegram}` : "");
+
+/** Ссылка на WhatsApp по телефону продавца ("" — не указан) */
+export const whatsappUrl = (): string => (SELLER.phone ? `https://wa.me/${SELLER.phone.replace(/\D/g, "")}` : "");
 
 /** Как связаться с продавцом — одной строкой для документов. */
 export function sellerContactsText(): string {

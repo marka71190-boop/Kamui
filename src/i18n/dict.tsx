@@ -5,7 +5,7 @@
 import type { ReactNode } from "react";
 import { abroadAreaText } from "@/config/cdek-countries";
 import { KIT, WHOLESALE } from "@/config/products";
-import { PRODUCT } from "@/config/site";
+import { PRODUCT, SELLER } from "@/config/site";
 import { formatNumber } from "@/lib/format";
 import type { Lang } from "./lang";
 
@@ -241,6 +241,10 @@ const ru = {
     /** Оптовая цена действует */
     wholesaleOn: (min: number, saving: string) => `Оптовая цена от ${min} шт. — экономия ${saving}`,
     wholesaleBadge: "опт",
+    /** Опт закрыт: как заказать больше */
+    bulkContact: `Оптом (от ${WHOLESALE.minQty} шт.) — по телефону`,
+    bulkCallWa: "звонок или",
+    bulkOr: "или в",
     kitOption: "Подарочный набор",
     kitOptionSub: "мел, фото с автографом, салфетка, наклейка JOS",
     kitName: "Подарочный набор",
@@ -381,11 +385,13 @@ const ru = {
       },
       {
         q: "Сколько стоит мел Kamui × Абрамов и где его купить?",
-        a: `Цена — ${price} за 1 шт., при заказе от ${WHOLESALE.minQty} шт. — ${wholesale} за шт. Купить можно на этом сайте: выберите количество и пункт выдачи СДЭК и оплатите заказ онлайн. Тираж ограничен 2000 экземплярами, актуальный остаток показан на странице.`,
+        a: `Цена — ${price} за 1 шт.${WHOLESALE.enabled ? `, при заказе от ${WHOLESALE.minQty} шт. — ${wholesale} за шт` : ""}. Купить можно на этом сайте: выберите количество и пункт выдачи СДЭК и оплатите заказ онлайн. Тираж ограничен 2000 экземплярами, актуальный остаток показан на странице.`,
       },
       {
         q: "Есть ли оптовая цена?",
-        a: `Да. Если в одном заказе от ${WHOLESALE.minQty} шт. мела, каждый стоит ${wholesale} вместо ${price}${
+        a: !WHOLESALE.enabled
+          ? `Оптовые продажи через сайт закрыты: в одном заказе — до ${PRODUCT.maxPerOrder} шт. По вопросам опта звоните или пишите в WhatsApp ${SELLER.phone}, в Telegram — @${SELLER.telegram}.`
+          : `Да. Если в одном заказе от ${WHOLESALE.minQty} шт. мела, каждый стоит ${wholesale} вместо ${price}${
           abroadPrice && abroadWholesale ? ` (для заказов из-за рубежа — ${abroadWholesale} вместо ${abroadPrice})` : ""
         }. В одном заказе — до ${PRODUCT.maxPerOrder} шт. На подарочные наборы оптовая цена не распространяется.`,
       },
@@ -684,6 +690,9 @@ const en: Dict = {
     wholesaleTake: (min) => `Take ${min} pcs`,
     wholesaleOn: (min, saving) => `Bulk price for ${min}+ pcs — you save ${saving}`,
     wholesaleBadge: "bulk",
+    bulkContact: `Bulk orders (${WHOLESALE.minQty}+ pcs) — call`,
+    bulkCallWa: "or",
+    bulkOr: "or",
     kitOption: "Gift set",
     kitOptionSub: "chalk, signed photo, cloth, JOS tip",
     kitName: "Gift set",
@@ -812,11 +821,13 @@ const en: Dict = {
       },
       {
         q: "How much does it cost and how do I order from abroad?",
-        a: `The price is ${price} per piece, or ${wholesale} per piece when you order ${WHOLESALE.minQty} or more. Send an order request on this page — our manager will contact you to confirm international shipping and payment.`,
+        a: `The price is ${price} per piece${WHOLESALE.enabled ? `, or ${wholesale} per piece when you order ${WHOLESALE.minQty} or more` : ""}. Send an order request on this page — our manager will contact you to confirm international shipping and payment.`,
       },
       {
         q: "Is there a bulk price?",
-        a: `Yes. When one order has ${WHOLESALE.minQty} or more pieces of chalk, each costs ${wholesale} instead of ${price}. Up to ${PRODUCT.maxPerOrder} pieces per order. The bulk price does not apply to gift sets.`,
+        a: !WHOLESALE.enabled
+          ? `Bulk sales through the website are closed: up to ${PRODUCT.maxPerOrder} pieces per order. For bulk orders call or message us on WhatsApp ${SELLER.phone}, or on Telegram @${SELLER.telegram}.`
+          : `Yes. When one order has ${WHOLESALE.minQty} or more pieces of chalk, each costs ${wholesale} instead of ${price}. Up to ${PRODUCT.maxPerOrder} pieces per order. The bulk price does not apply to gift sets.`,
       },
       {
         q: "Is it original? Where can I buy it officially?",

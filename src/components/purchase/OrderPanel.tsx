@@ -22,7 +22,7 @@ import {
   type ProductId,
   type TipsMap,
 } from "@/config/products";
-import { PRODUCT } from "@/config/site";
+import { PRODUCT, SELLER, telegramUrl, whatsappUrl } from "@/config/site";
 import { t } from "@/i18n/dict";
 import { RU_MARKET, type Market } from "@/i18n/market";
 import { formatMoney } from "@/lib/format";
@@ -636,6 +636,7 @@ export function OrderPanel({
               <span className={styles.productPrice}>
                 {money(priceOf(p))}
                 {p === "chalk" &&
+                  WHOLESALE.enabled &&
                   (isWholesale(p, quantity) ? (
                     <s>{money(prices.unit)}</s>
                   ) : (
@@ -713,7 +714,29 @@ export function OrderPanel({
             <span>{formOpen && (useCdek || payOnline) ? tx.goods : tx.total}</span>
             <b>{money(total)}</b>
           </p>
-          {!kit && !soldOut && (
+          {!soldOut && !WHOLESALE.enabled && (
+            <p className={styles.wholesale}>
+              <span>
+                {tx.bulkContact}{" "}
+                {SELLER.phone && (
+                  <>
+                    <a href={`tel:${SELLER.phone.replace(/[^\d+]/g, "")}`}>{SELLER.phone}</a> ({tx.bulkCallWa}{" "}
+                    <a href={whatsappUrl()} target="_blank" rel="noopener noreferrer">
+                      WhatsApp
+                    </a>
+                    )
+                  </>
+                )}
+                {SELLER.phone && SELLER.telegram && ` ${tx.bulkOr} `}
+                {SELLER.telegram && (
+                  <a href={telegramUrl()} target="_blank" rel="noopener noreferrer">
+                    Telegram @{SELLER.telegram}
+                  </a>
+                )}
+              </span>
+            </p>
+          )}
+          {!kit && !soldOut && WHOLESALE.enabled && (
             <p className={styles.wholesale} data-on={wholesaleNow || undefined} aria-live="polite">
               <span>
                 {wholesaleNow
