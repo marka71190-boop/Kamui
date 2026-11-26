@@ -30,10 +30,10 @@ export const PRODUCT = {
   priceUsd: 48,
   currency: "RUB",
   /**
-   * Максимум штук в одной заявке. Опт на сайте закрыт (WHOLESALE.enabled в products.ts) — до 20 шт. по обычной цене;
+   * Максимум штук в одной заявке. Опт на сайте закрыт (WHOLESALE.enabled в products.ts) — до 10 шт. по обычной цене;
    * больше — по телефону, WhatsApp или в Telegram.
    */
-  maxPerOrder: 20,
+  maxPerOrder: 10,
 } as const;
 
 /** Реквизиты продавца (показываются в подвале и в политике конфиденциальности). */
